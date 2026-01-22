@@ -44,7 +44,7 @@ const AddPassword = () => {
       const password = await getPasswordById(id!);
       
       // Şifreyi çöz (Encryption Key'i geç)
-      const decrypted = decryptDataFromAPI(
+      const decrypted = await decryptDataFromAPI(
         {
           encryptedName: password.encryptedName,
           encryptedUserName: password.encryptedUserName,
@@ -52,7 +52,8 @@ const AddPassword = () => {
           encryptedDescription: password.encryptedDescription,
           encryptedWebSiteUrl: password.encryptedWebSiteUrl,
         },
-        encryptionKey
+        encryptionKey,
+        password.iv // Veritabanından gelen IV'ı geç
       );
 
       setFormData({
@@ -107,13 +108,22 @@ const AddPassword = () => {
 
       // localStorage'dan Encryption Key'i al
       const encryptionKey = localStorage.getItem('encryptionKey');
+      console.log('🔑 Encryption Key var mı?', !!encryptionKey);
+      
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
         return;
       }
 
       // Verileri şifrele (Encryption Key'i geç)
-      const encryptedData = encryptDataForAPI(
+      console.log('🔐 Parola şifreleme işlemi başlıyor...');
+      console.log('📊 Şifrelenecek data:', {
+        name: formData.name,
+        username: formData.username,
+        passwordLength: formData.password.length,
+      });
+      
+      const encryptedData = await encryptDataForAPI(
         {
           name: formData.name,
           username: formData.username,
@@ -123,6 +133,11 @@ const AddPassword = () => {
         },
         encryptionKey
       );
+
+      console.log('✅ Şifreleme başarılı:', {
+        encryptedNameLength: encryptedData.encryptedName.length,
+        iv: encryptedData.iv.substring(0, 20) + '...',
+      });
 
       if (isEditMode && id) {
         // Güncelle

@@ -24,34 +24,75 @@ const ViewPassword = () => {
   const fetchPassword = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       // localStorage'dan Encryption Key'i al
       const encryptionKey = localStorage.getItem('encryptionKey');
+      console.log('🔑 Encryption Key var mı?', !!encryptionKey);
+      
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
         setLoading(false);
         return;
       }
 
+      console.log('📥 Parola yükleniyor, ID:', id);
       const passwordData = await getPasswordById(id!);
+      console.log('✅ API döndü (RAW):', {
+        id: passwordData.id,
+        encryptedNameLength: passwordData.encryptedName?.length,
+        encryptedPasswordLength: passwordData.encryptedPassword?.length,
+        iv: passwordData.iv,
+        ivLength: passwordData.iv?.length,
+        ivType: typeof passwordData.iv,
+      });
+      
       setPassword(passwordData);
 
+      // IV kontrol - eski şifreler (IV olmadan) vs yeni şifreler (IV ile)
+      if (!passwordData.iv) {
+        console.warn('⚠️ IV BULUNAMADI - Eski şifreleme mi? Backward compat gerekli olabilir');
+        setError('Bu parola yeni format ile kaydedilmemiş. Admin ile iletişim kurun.');
+        setLoading(false);
+        return;
+      }
+
       // Şifreyi çöz (Encryption Key'i geç)
-      const decryptedData = decryptDataFromAPI(
-        {
-          encryptedName: passwordData.encryptedName,
-          encryptedUserName: passwordData.encryptedUserName,
-          encryptedPassword: passwordData.encryptedPassword,
-          encryptedDescription: passwordData.encryptedDescription,
-          encryptedWebSiteUrl: passwordData.encryptedWebSiteUrl,
-        },
-        encryptionKey
-      );
-      setDecrypted(decryptedData);
-      setError(null);
-    } catch (err) {
-      setError('Parola yüklenemedi');
-      console.error(err);
+      console.log('🔓 Decrypt işlemi başlıyor...');
+      console.log('📋 Decrypt parametreleri:', {
+        encryptedNameLength: passwordData.encryptedName.length,
+        encryptionKeyLength: encryptionKey.length,
+        ivLength: passwordData.iv.length,
+      });
+      
+      try {
+        const decryptedData = await decryptDataFromAPI(
+          {
+            encryptedName: passwordData.encryptedName,
+            encryptedUserName: passwordData.encryptedUserName,
+            encryptedPassword: passwordData.encryptedPassword,
+            encryptedDescription: passwordData.encryptedDescription,
+            encryptedWebSiteUrl: passwordData.encryptedWebSiteUrl,
+          },
+          encryptionKey,
+          passwordData.iv // Veritabanından gelen IV'ı geç
+        );
+        console.log('✅ Decrypt başarılı:', decryptedData);
+        setDecrypted(decryptedData);
+      } catch (decryptError: any) {
+        console.error('❌ Decrypt hatası:', decryptError);
+        console.error('Hata detayı:', {
+          message: decryptError.message,
+          name: decryptError.name,
+          stack: decryptError.stack?.split('\n').slice(0, 3),
+        });
+        setError(`Şifre çözme başarısız: ${decryptError.message}`);
+        setLoading(false);
+        return;
+      }
+    } catch (err: any) {
+      console.error('❌ Parola yükleme hatası:', err);
+      setError(`Parola yüklenemedi: ${err.message || err}`);
     } finally {
       setLoading(false);
     }

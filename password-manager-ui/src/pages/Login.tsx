@@ -9,6 +9,29 @@ interface LocationState {
   message?: string;
 }
 
+// JWT'yi decode et ve userId'yi al
+const getUserIdFromToken = (token: string): string | null => {
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    
+    // .NET Asp.Net Identity claim key'i
+    const userIdClaimKey = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier';
+    const userId = decoded[userIdClaimKey];
+    
+    if (userId) {
+      console.log('✅ userId JWT claim\'inden alındı:', userId);
+      return userId;
+    }
+    
+    // Fallback: diğer olası claim key'ler
+    return decoded.sub || decoded.userId || decoded.nameid || null;
+  } catch (error) {
+    console.error('JWT decode hatası:', error);
+    return null;
+  }
+};
+
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,10 +81,13 @@ const Login = () => {
       localStorage.clear();
 
       // 1. FRONTEND: Master Key'i türet (PBKDF2 - 200,000 iterasyon, hızlı)
-      const masterKey = deriveMasterKey(formData.masterPassword, formData.userName);
+      // Web Crypto API - çok hızlı ve donanım hızlandırmalı!
+      // ⚠️ ÖNEMLI: userName yerine userId kullanacağız (sonradan gelecek)
+      // Şimdilik userName ile başlat, sonra JWT'den userId al
+      const masterKey = await deriveMasterKey(formData.masterPassword, formData.userName);
 
       // 2. FRONTEND: Auth Hash'i oluştur (sunucuya gönderilecek)
-      const authHash = createAuthHash(masterKey);
+      const authHash = await createAuthHash(masterKey);
 
       // 3. API'ye gönder ve yanıt al
       const loginData: UserForLoginDto = {
@@ -77,20 +103,35 @@ const Login = () => {
       console.log('🔑 localStorage token var mı?', !!token);
       console.log('📦 Token değeri:', token?.substring(0, 20) + '...');
 
-      // Şimdi Encryption Key'i de ekle
-      const encryptionKey = deriveEncryptionKey(masterKey);
+      // JWT'den userId'yi al
+      let userId = formData.userName; // fallback
+      if (token) {
+        const extractedUserId = getUserIdFromToken(token);
+        if (extractedUserId) {
+          userId = extractedUserId;
+          console.log('✅ userId JWT\'den alındı:', userId);
+        }
+      }
+
+      // Simdi userId ile Master Key'i yeniden türet
+      const masterKeyWithUserId = await deriveMasterKey(formData.masterPassword, userId);
+
+      // Encryption Key'i türet ve kaydet
+      const encryptionKey = await deriveEncryptionKey(masterKeyWithUserId);
       localStorage.setItem('encryptionKey', encryptionKey);
       localStorage.setItem('userName', formData.userName);
+      localStorage.setItem('userId', userId);
 
       console.log('✅ Tüm storage bilgileri kaydedildi');
       console.log('📍 localStorage keys:', Object.keys(localStorage));
 
       // 5. ARKA PLANDA: Daha güçlü Master Key'i türet (600,000 iterasyon)
-      deriveMasterKeySecure(formData.masterPassword, formData.userName)
-        .then((secureKey) => {
-          const secureEncryptionKey = deriveEncryptionKey(secureKey);
+      // Web Crypto API + Web Worker = UI donmuyor, donanım hızlandırmalı
+      deriveMasterKeySecure(formData.masterPassword, userId)
+        .then(async (secureKey) => {
+          const secureEncryptionKey = await deriveEncryptionKey(secureKey);
           localStorage.setItem('encryptionKey', secureEncryptionKey);
-          console.log('🔐 Güvenli Master Key türetme tamamlandı');
+          console.log('🔐 Güvenli Master Key türetme tamamlandı (600K iterasyon)');
         })
         .catch((err) => {
           console.error('❌ Güvenli Master Key türetme hatası:', err);

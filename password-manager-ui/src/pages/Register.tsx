@@ -47,11 +47,13 @@ const Register = () => {
     try {
       setLoading(true);
 
-      // 1. FRONTEND: Master Key'i türet (PBKDF2)
-      const masterKey = deriveMasterKey(formData.masterPassword, formData.userName);
+      // 1. FRONTEND: Master Key'i türet (PBKDF2 - Web Crypto API, hızlı!)
+      // ⚠️ NOT: Register sırasında userId bilmiyoruz, userName kullanıyoruz
+      // Login sonrası JWT'den userId alındığında key yeniden türetilecek
+      const masterKey = await deriveMasterKey(formData.masterPassword, formData.userName);
 
       // 2. FRONTEND: Auth Hash'i oluştur (backend'e bu hash'in hash'i kaydedilecek)
-      const authHash = createAuthHash(masterKey);
+      const authHash = await createAuthHash(masterKey);
 
       // 3. API'ye kayıt bilgilerini gönder
       const registerData: UserForRegisterDto = {
@@ -60,17 +62,18 @@ const Register = () => {
         password: authHash, // Backend bu hash'i bcrypt/argon2 ile hashleyip kaydedecek
       };
 
-      await register(registerData);
+      const registerResponse = await register(registerData);
+      console.log('✅ Kayıt başarılı, userId:', registerResponse.userId);
 
       // 201 Created döndü = başarılı kayıt
       // Backend response format'ı ne olursa olsun, try bloğu başarılı = kayıt başarılı
-      // ARKA PLANDA: Daha güçlü Master Key'i türet (600,000 iterasyon)
+      // ARKA PLANDA: Daha güçlü Master Key'i türet (600,000 iterasyon, Web Worker + Web Crypto)
       deriveMasterKeySecure(formData.masterPassword, formData.userName)
         .then(() => {
-          console.log('Güvenli Master Key türetme tamamlandı');
+          console.log('🔐 Güvenli Master Key türetme tamamlandı (600K iterasyon)');
         })
         .catch((err) => {
-          console.error('Güvenli Master Key türetme hatası:', err);
+          console.error('❌ Güvenli Master Key türetme hatası:', err);
         });
 
       navigate('/login', { state: { message: 'Kayıt başarılı. Lütfen Master Parolası ile giriş yapın.' } });

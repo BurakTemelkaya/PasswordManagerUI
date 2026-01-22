@@ -28,44 +28,58 @@ const Dashboard = () => {
   const fetchPasswords = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       // localStorage'dan Encryption Key'i al
       const encryptionKey = localStorage.getItem('encryptionKey');
+      console.log('🔑 Encryption Key var mı?', !!encryptionKey);
+      
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
         setLoading(false);
         return;
       }
 
+      console.log('📥 Parolalar yükleniyor...');
       const data = await getAllPasswords(currentPage, pageSize);
       const passwordList = data.items || [];
+      console.log('✅ API döndü, parola sayısı:', passwordList.length);
+      
       setPasswords(passwordList);
       setTotalPages(data.pages);
       setTotalCount(data.count);
 
       // Şifreleri çöz (Encryption Key'i geç)
       const decrypted = new Map();
-      passwordList.forEach((pwd) => {
-        try {
-          const decryptedData = decryptDataFromAPI(
-            {
-              encryptedName: pwd.encryptedName,
-              encryptedUserName: pwd.encryptedUserName,
-              encryptedPassword: pwd.encryptedPassword,
-              encryptedDescription: pwd.encryptedDescription,
-              encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
-            },
-            encryptionKey
-          );
-          decrypted.set(pwd.id, {
-            name: decryptedData.name,
-            websiteUrl: decryptedData.websiteUrl,
-            username: decryptedData.username,
-          });
-        } catch (err) {
-          console.error(`Failed to decrypt password ${pwd.id}:`, err);
-        }
-      });
+      
+      console.log('🔓 Decrypt işlemleri başlıyor...');
+      // Promise.all ile parallel decrypt işlemi
+      await Promise.all(
+        passwordList.map(async (pwd) => {
+          try {
+            const decryptedData = await decryptDataFromAPI(
+              {
+                encryptedName: pwd.encryptedName,
+                encryptedUserName: pwd.encryptedUserName,
+                encryptedPassword: pwd.encryptedPassword,
+                encryptedDescription: pwd.encryptedDescription,
+                encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
+              },
+              encryptionKey,
+              pwd.iv // Veritabanından gelen IV'ı geç
+            );
+            decrypted.set(pwd.id, {
+              name: decryptedData.name,
+              websiteUrl: decryptedData.websiteUrl,
+              username: decryptedData.username,
+            });
+            console.log(`✅ ${decryptedData.name} decrypted başarılı`);
+          } catch (err: any) {
+            console.error(`❌ Decrypt hatası (${pwd.id}):`, err.message || err);
+          }
+        })
+      );
+      console.log('✅ Tüm decrypt işlemleri tamamlandı, toplam:', decrypted.size);
       setDecryptedPasswords(decrypted);
       setError(null);
     } catch (err) {
