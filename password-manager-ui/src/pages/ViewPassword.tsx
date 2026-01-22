@@ -24,17 +24,29 @@ const ViewPassword = () => {
   const fetchPassword = async () => {
     try {
       setLoading(true);
+
+      // localStorage'dan Encryption Key'i al
+      const encryptionKey = localStorage.getItem('encryptionKey');
+      if (!encryptionKey) {
+        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        setLoading(false);
+        return;
+      }
+
       const passwordData = await getPasswordById(id!);
       setPassword(passwordData);
 
-      // Şifreyi çöz
-      const decryptedData = decryptDataFromAPI({
-        encryptedName: passwordData.encryptedName,
-        encryptedUserName: passwordData.encryptedUserName,
-        encryptedPassword: passwordData.encryptedPassword,
-        encryptedDescription: passwordData.encryptedDescription,
-        encryptedWebSiteUrl: passwordData.encryptedWebSiteUrl,
-      });
+      // Şifreyi çöz (Encryption Key'i geç)
+      const decryptedData = decryptDataFromAPI(
+        {
+          encryptedName: passwordData.encryptedName,
+          encryptedUserName: passwordData.encryptedUserName,
+          encryptedPassword: passwordData.encryptedPassword,
+          encryptedDescription: passwordData.encryptedDescription,
+          encryptedWebSiteUrl: passwordData.encryptedWebSiteUrl,
+        },
+        encryptionKey
+      );
       setDecrypted(decryptedData);
       setError(null);
     } catch (err) {

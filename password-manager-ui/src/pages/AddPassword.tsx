@@ -32,16 +32,28 @@ const AddPassword = () => {
   const loadPassword = async () => {
     try {
       setInitialLoading(true);
+
+      // localStorage'dan Encryption Key'i al
+      const encryptionKey = localStorage.getItem('encryptionKey');
+      if (!encryptionKey) {
+        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        setInitialLoading(false);
+        return;
+      }
+
       const password = await getPasswordById(id!);
       
-      // Şifreyi çöz
-      const decrypted = decryptDataFromAPI({
-        encryptedName: password.encryptedName,
-        encryptedUserName: password.encryptedUserName,
-        encryptedPassword: password.encryptedPassword,
-        encryptedDescription: password.encryptedDescription,
-        encryptedWebSiteUrl: password.encryptedWebSiteUrl,
-      });
+      // Şifreyi çöz (Encryption Key'i geç)
+      const decrypted = decryptDataFromAPI(
+        {
+          encryptedName: password.encryptedName,
+          encryptedUserName: password.encryptedUserName,
+          encryptedPassword: password.encryptedPassword,
+          encryptedDescription: password.encryptedDescription,
+          encryptedWebSiteUrl: password.encryptedWebSiteUrl,
+        },
+        encryptionKey
+      );
 
       setFormData({
         name: decrypted.name,
@@ -93,14 +105,24 @@ const AddPassword = () => {
     try {
       setLoading(true);
 
-      // Verileri şifrele
-      const encryptedData = encryptDataForAPI({
-        name: formData.name,
-        username: formData.username,
-        password: formData.password,
-        description: formData.description,
-        websiteUrl: formData.websiteUrl,
-      });
+      // localStorage'dan Encryption Key'i al
+      const encryptionKey = localStorage.getItem('encryptionKey');
+      if (!encryptionKey) {
+        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        return;
+      }
+
+      // Verileri şifrele (Encryption Key'i geç)
+      const encryptedData = encryptDataForAPI(
+        {
+          name: formData.name,
+          username: formData.username,
+          password: formData.password,
+          description: formData.description,
+          websiteUrl: formData.websiteUrl,
+        },
+        encryptionKey
+      );
 
       if (isEditMode && id) {
         // Güncelle

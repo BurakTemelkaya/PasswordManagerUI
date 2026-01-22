@@ -28,23 +28,35 @@ const Dashboard = () => {
   const fetchPasswords = async () => {
     try {
       setLoading(true);
+
+      // localStorage'dan Encryption Key'i al
+      const encryptionKey = localStorage.getItem('encryptionKey');
+      if (!encryptionKey) {
+        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        setLoading(false);
+        return;
+      }
+
       const data = await getAllPasswords(currentPage, pageSize);
       const passwordList = data.items || [];
       setPasswords(passwordList);
       setTotalPages(data.pages);
       setTotalCount(data.count);
 
-      // Şifreleri çöz
+      // Şifreleri çöz (Encryption Key'i geç)
       const decrypted = new Map();
       passwordList.forEach((pwd) => {
         try {
-          const decryptedData = decryptDataFromAPI({
-            encryptedName: pwd.encryptedName,
-            encryptedUserName: pwd.encryptedUserName,
-            encryptedPassword: pwd.encryptedPassword,
-            encryptedDescription: pwd.encryptedDescription,
-            encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
-          });
+          const decryptedData = decryptDataFromAPI(
+            {
+              encryptedName: pwd.encryptedName,
+              encryptedUserName: pwd.encryptedUserName,
+              encryptedPassword: pwd.encryptedPassword,
+              encryptedDescription: pwd.encryptedDescription,
+              encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
+            },
+            encryptionKey
+          );
           decrypted.set(pwd.id, {
             name: decryptedData.name,
             websiteUrl: decryptedData.websiteUrl,

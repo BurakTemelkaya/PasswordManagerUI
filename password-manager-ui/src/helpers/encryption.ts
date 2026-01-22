@@ -160,14 +160,22 @@ export const generateIV = (): string => {
 
 /**
  * Verileri şifrele ve API gönderimine hazırla
+ * Encryption Key kullanarak AES şifreleme yapılır
+ * 
+ * @param data Şifrelenecek veriler
+ * @param encryptionKey Master Key'den türetilmiş Encryption Key
+ * @returns Şifrelenmiş ve Base64 encoded veriler
  */
-export const encryptDataForAPI = (data: {
-  name: string;
-  username: string;
-  password: string;
-  description?: string;
-  websiteUrl?: string;
-}): {
+export const encryptDataForAPI = (
+  data: {
+    name: string;
+    username: string;
+    password: string;
+    description?: string;
+    websiteUrl?: string;
+  },
+  encryptionKey: string
+): {
   encryptedName: string;
   encryptedUserName: string;
   encryptedPassword: string;
@@ -177,37 +185,57 @@ export const encryptDataForAPI = (data: {
 } => {
   const iv = generateIV();
 
-  return {
-    encryptedName: encodeBase64(data.name),
-    encryptedUserName: encodeBase64(data.username),
-    encryptedPassword: encodeBase64(data.password),
-    encryptedDescription: encodeBase64(data.description || ''),
-    encryptedWebSiteUrl: encodeBase64(data.websiteUrl || ''),
-    iv: encodeBase64(iv),
-  };
+  try {
+    return {
+      // AES şifreleme yapılır
+      encryptedName: encryptAES(data.name, encryptionKey),
+      encryptedUserName: encryptAES(data.username, encryptionKey),
+      encryptedPassword: encryptAES(data.password, encryptionKey),
+      encryptedDescription: encryptAES(data.description || '', encryptionKey),
+      encryptedWebSiteUrl: encryptAES(data.websiteUrl || '', encryptionKey),
+      iv: iv,
+    };
+  } catch (error) {
+    console.error('Data encryption error:', error);
+    throw error;
+  }
 };
 
 /**
  * API'den gelen şifrelenmiş verileri çöz
+ * Encryption Key kullanarak AES decryption yapılır
+ * 
+ * @param data API'den gelen şifrelenmiş veriler
+ * @param encryptionKey Master Key'den türetilmiş Encryption Key
+ * @returns Şifresi çözülmüş veriler
  */
-export const decryptDataFromAPI = (data: {
-  encryptedName: string;
-  encryptedUserName: string;
-  encryptedPassword: string;
-  encryptedDescription: string;
-  encryptedWebSiteUrl: string;
-}): {
+export const decryptDataFromAPI = (
+  data: {
+    encryptedName: string;
+    encryptedUserName: string;
+    encryptedPassword: string;
+    encryptedDescription: string;
+    encryptedWebSiteUrl: string;
+  },
+  encryptionKey: string
+): {
   name: string;
   username: string;
   password: string;
   description: string;
   websiteUrl: string;
 } => {
-  return {
-    name: decodeBase64(data.encryptedName),
-    username: decodeBase64(data.encryptedUserName),
-    password: decodeBase64(data.encryptedPassword),
-    description: decodeBase64(data.encryptedDescription),
-    websiteUrl: decodeBase64(data.encryptedWebSiteUrl),
-  };
+  try {
+    return {
+      // AES decryption yapılır
+      name: decryptAES(data.encryptedName, encryptionKey),
+      username: decryptAES(data.encryptedUserName, encryptionKey),
+      password: decryptAES(data.encryptedPassword, encryptionKey),
+      description: decryptAES(data.encryptedDescription, encryptionKey),
+      websiteUrl: decryptAES(data.encryptedWebSiteUrl, encryptionKey),
+    };
+  } catch (error) {
+    console.error('Data decryption error:', error);
+    throw error;
+  }
 };
