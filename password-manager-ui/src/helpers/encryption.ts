@@ -196,7 +196,8 @@ export const deriveMasterKey = async (
 };
 
 /**
- * PBKDF2 ile Master Key'i yüksek iterasyon ile türet (arka planda Web Worker ile)
+ * PBKDF2 ile Master Key'i yüksek iterasyon ile türet 
+ * Browser extension ortamında Web Worker CSP sorunu yaşayabileceğinden doğrudan main thread kullanır
  * 
  * @param masterPassword Kullanıcının ana parolası
  * @param userId Veritabanı User ID (salt, asla değişmez!)
@@ -206,56 +207,15 @@ export const deriveMasterKeySecure = async (
   masterPassword: string,
   userId: string
 ): Promise<string> => {
-  return new Promise((resolve) => {
-    try {
-      const workerUrl = new URL('../workers/crypto.worker.ts', import.meta.url);
-      const worker = new Worker(workerUrl, { type: 'module' });
-
-      // Timeout: 15 saniye (Web Crypto 600K çok hızlı)
-      const timeout = setTimeout(() => {
-        worker.terminate();
-        console.warn('Web Worker timeout - fallback to fast key');
-        deriveMasterKey(masterPassword, userId, 600000)
-          .then(resolve)
-          .catch(() => {
-            // Fallback fallback
-            resolve(masterPassword);
-          });
-      }, 15000);
-
-      worker.onmessage = (event) => {
-        clearTimeout(timeout);
-        const { success, masterKey, error } = event.data;
-
-        if (success && masterKey) {
-          worker.terminate();
-          resolve(masterKey);
-        } else {
-          worker.terminate();
-          console.error('Worker error:', error);
-          deriveMasterKey(masterPassword, userId, 600000)
-            .then(resolve)
-            .catch(() => {
-              resolve(masterPassword);
-            });
-        }
-      };
-
-      worker.postMessage({
-        type: 'deriveMasterKey',
-        masterPassword,
-        userId,
-        iterations: 600000,
-      });
-    } catch (error) {
-      console.error('Web Worker creation error:', error);
-      deriveMasterKey(masterPassword, userId, 600000)
-        .then(resolve)
-        .catch(() => {
-          resolve(masterPassword);
-        });
-    }
-  });
+  try {
+    // Extension ortamında doğrudan main thread'de çalıştır
+    // Web Crypto API donanım hızlandırmalı olduğu için yeterince hızlı
+    return await deriveMasterKey(masterPassword, userId, 600000);
+  } catch (error) {
+    console.error('Master key derivation error:', error);
+    // Son çare - raw password (güvenlik riski ama crash'den iyi)
+    return masterPassword;
+  }
 };
 
 /**

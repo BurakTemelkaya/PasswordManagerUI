@@ -3,9 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { addPassword, updatePassword, getPasswordById } from '../helpers/api';
 import { encryptDataForAPI, decryptDataFromAPI } from '../helpers/encryption';
 import type { CreatePasswordDto, UpdatedPasswordDto } from '../types';
-import '../styles/pages.css';
+import '../styles/auth.css';
 
-const AddPassword = () => {
+interface AddPasswordProps {
+  onSuccess?: () => void; // Extension popup için
+  onCancel?: () => void; // Extension popup için
+}
+
+const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
@@ -152,7 +157,14 @@ const AddPassword = () => {
         await addPassword(createData);
       }
 
-      navigate('/');
+      // Extension popup'ta mı diye kontrol et
+      if (onSuccess) {
+        console.log('📱 Extension popup modunda - onSuccess callback çağrılıyor');
+        onSuccess();
+      } else {
+        // Normal web app'ta - dashboard'a yönlendir
+        navigate('/');
+      }
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'İşlem başarısız. Lütfen tekrar deneyiniz.';
       setError(errorMessage);
@@ -277,7 +289,13 @@ const AddPassword = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => {
+                if (onCancel) {
+                  onCancel();
+                } else {
+                  navigate('/');
+                }
+              }}
               className="btn btn-secondary"
             >
               İptal

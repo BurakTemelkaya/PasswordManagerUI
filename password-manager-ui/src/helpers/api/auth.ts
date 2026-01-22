@@ -19,6 +19,12 @@ export const register = async (data: UserForRegisterDto): Promise<RegisterRespon
  */
 export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
   try {
+    console.log('🔄 Login API call başlanıyor:', {
+      baseURL: apiClient.defaults.baseURL,
+      endpoint: '/Auth/Login',
+      data
+    });
+    
     const response = await apiClient.post<LoginResponse>('/Auth/Login', data);
 
     // Token ve bilgileri sakla
@@ -29,8 +35,15 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
     }
 
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('🔴 Login API Error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      url: error.config?.url,
+    });
     throw error;
   }
 };

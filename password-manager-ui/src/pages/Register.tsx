@@ -3,9 +3,14 @@ import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../helpers/api';
 import { deriveMasterKey, createAuthHash, deriveMasterKeySecure } from '../helpers/encryption';
 import type { UserForRegisterDto } from '../types';
-import '../styles/pages.css';
+import '../styles/auth.css';
 
-const Register = () => {
+interface RegisterProps {
+  onRegisterSuccess?: () => void; // Extension popup için
+  onBackToLogin?: () => void; // Extension popup için - login page'ine geri dön
+}
+
+const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
@@ -76,7 +81,14 @@ const Register = () => {
           console.error('❌ Güvenli Master Key türetme hatası:', err);
         });
 
-      navigate('/login', { state: { message: 'Kayıt başarılı. Lütfen Master Parolası ile giriş yapın.' } });
+      // Extension popup'ta mı diye kontrol et
+      if (onRegisterSuccess) {
+        console.log('📱 Extension popup modunda - onRegisterSuccess callback çağrılıyor');
+        onRegisterSuccess();
+      } else {
+        // Normal web app'ta - login sayfasına yönlendir
+        navigate('/login', { state: { message: 'Kayıt başarılı. Lütfen Master Parolası ile giriş yapın.' } });
+      }
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Kayıt başarısız. Lütfen tekrar deneyiniz.';
       setError(errorMessage);
@@ -150,9 +162,16 @@ const Register = () => {
             {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
           </button>
         </form>
-        <p className="auth-link">
-          Zaten hesabınız var mı? <Link to="/login">Giriş yap</Link>
-        </p>
+        <div className="auth-footer">
+          Zaten hesabınız var mı?{' '}
+          {onBackToLogin ? (
+            <button onClick={onBackToLogin} className="btn-link">
+              Giriş yap
+            </button>
+          ) : (
+            <Link to="/login">Giriş yap</Link>
+          )}
+        </div>
       </div>
     </div>
   );

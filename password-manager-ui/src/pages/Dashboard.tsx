@@ -4,9 +4,16 @@ import { getAllPasswords, logout, deletePassword } from '../helpers/api';
 import type { Password } from '../types';
 import { decryptDataFromAPI } from '../helpers/encryption';
 import { formatLocalDateTime } from '../helpers/dateFormatter';
-import '../styles/pages.css';
+import '../styles/auth.css';
 
-const Dashboard = () => {
+interface DashboardProps {
+  onLogout?: () => void; // Extension popup için
+  onAddPassword?: () => void; // Extension popup'ta parola ekleme modal
+  onViewPassword?: (id: string) => void; // Extension popup'ta parola görüntüleme
+  onEditPassword?: (id: string) => void; // Extension popup'ta parola düzenleme
+}
+
+const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword }: DashboardProps) => {
   const navigate = useNavigate();
   const [passwords, setPasswords] = useState<Password[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +99,15 @@ const Dashboard = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    
+    // Extension popup'ta mı diye kontrol et
+    if (onLogout) {
+      console.log('📱 Extension popup modunda - onLogout callback çağrılıyor');
+      onLogout();
+    } else {
+      // Normal web app'ta - router'a yönlendir
+      navigate('/login');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -142,7 +157,13 @@ const Dashboard = () => {
 
       <main className="main">
         <div className="actions">
-          <button onClick={() => navigate('/passwords/add')} className="btn btn-primary">
+          <button onClick={() => {
+            if (onAddPassword) {
+              onAddPassword();
+            } else {
+              navigate('/passwords/add');
+            }
+          }} className="btn btn-primary">
             + Yeni Parola
           </button>
         </div>
@@ -153,7 +174,13 @@ const Dashboard = () => {
           <div className="empty-state">
             <p>Henüz parola eklememişsiniz</p>
             <button
-              onClick={() => navigate('/passwords/add')}
+              onClick={() => {
+                if (onAddPassword) {
+                  onAddPassword();
+                } else {
+                  navigate('/passwords/add');
+                }
+              }}
               className="btn btn-primary"
             >
               İlk parolayı ekleyin
@@ -174,13 +201,25 @@ const Dashboard = () => {
                     </p>
                     <div className="actions">
                       <button
-                        onClick={() => navigate(`/passwords/${password.id}`)}
+                        onClick={() => {
+                          if (onViewPassword) {
+                            onViewPassword(password.id);
+                          } else {
+                            navigate(`/passwords/${password.id}`);
+                          }
+                        }}
                         className="btn btn-small btn-info"
                       >
                         Görüntüle
                       </button>
                       <button
-                        onClick={() => navigate(`/passwords/${password.id}/edit`)}
+                        onClick={() => {
+                          if (onEditPassword) {
+                            onEditPassword(password.id);
+                          } else {
+                            navigate(`/passwords/${password.id}/edit`);
+                          }
+                        }}
                         className="btn btn-small btn-warning"
                       >
                         Düzenle

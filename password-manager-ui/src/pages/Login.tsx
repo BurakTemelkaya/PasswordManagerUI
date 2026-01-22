@@ -3,10 +3,15 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { login } from '../helpers/api';
 import { deriveMasterKey, createAuthHash, deriveEncryptionKey, deriveMasterKeySecure } from '../helpers/encryption';
 import type { UserForLoginDto } from '../types';
-import '../styles/pages.css';
+import '../styles/auth.css';
 
 interface LocationState {
   message?: string;
+}
+
+interface LoginProps {
+  onLoginSuccess?: () => void; // Extension popup için
+  onRegister?: () => void; // Extension popup için - register page'ine git
 }
 
 // JWT'yi decode et ve userId'yi al
@@ -32,7 +37,7 @@ const getUserIdFromToken = (token: string): string | null => {
   }
 };
 
-const Login = () => {
+const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state as LocationState) || {};
@@ -55,6 +60,31 @@ const Login = () => {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
+
+  // Kaydedilmiş kullanıcı adını yükle
+  useEffect(() => {
+    const loadSavedUsername = async () => {
+      // Önce localStorage'dan dene
+      const savedUserName = localStorage.getItem('userName');
+      if (savedUserName) {
+        setFormData(prev => ({ ...prev, userName: savedUserName }));
+      }
+      
+      // Chrome extension ise chrome.storage'dan da dene
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        try {
+          const result = await chrome.storage.local.get(['userName']);
+          if (result.userName && typeof result.userName === 'string') {
+            setFormData(prev => ({ ...prev, userName: result.userName as string }));
+          }
+        } catch (err) {
+          console.warn('Chrome storage okuma hatası:', err);
+        }
+      }
+    };
+    
+    loadSavedUsername();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -122,6 +152,29 @@ const Login = () => {
       localStorage.setItem('userName', formData.userName);
       localStorage.setItem('userId', userId);
 
+      // Chrome extension storage'a kaydet
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        try {
+          // Session storage: Tarayıcı kapanınca silinir (güvenlik için)
+          // authToken ve encryptionKey burada - her oturumda yeniden giriş gerekir
+          await chrome.storage.session.set({
+            authToken: token,
+            encryptionKey: encryptionKey,
+          });
+          
+          // Local storage: Kalıcı veriler - kullanıcı adı hatırlansın
+          await chrome.storage.local.set({
+            userName: formData.userName,
+            userId: userId,
+            apiUrl: 'https://localhost:7051/api'
+          });
+          
+          console.log('✅ Chrome storage kaydedildi (session + local)');
+        } catch (err) {
+          console.warn('Chrome storage kayıt hatası:', err);
+        }
+      }
+
       console.log('✅ Tüm storage bilgileri kaydedildi');
       console.log('📍 localStorage keys:', Object.keys(localStorage));
 
@@ -138,7 +191,15 @@ const Login = () => {
         });
 
       console.log('🚀 Navigate çalışıyor...');
-      navigate('/');
+      
+      // Extension popup'ta mı diye kontrol et
+      if (onLoginSuccess) {
+        console.log('📱 Extension popup modunda - onLoginSuccess callback çağrılıyor');
+        onLoginSuccess();
+      } else {
+        // Normal web app'ta - router'a yönlendir
+        navigate('/');
+      }
     } catch (err: any) {
       localStorage.clear();
       console.error('❌ Login error:', err);
@@ -202,9 +263,16 @@ const Login = () => {
             {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
           </button>
         </form>
-        <p className="auth-link">
-          Hesabınız yok mu? <Link to="/register">Kayıt ol</Link>
-        </p>
+        <div className="auth-footer">
+          Hesabınız yok mu?{' '}
+          {onRegister ? (
+            <button onClick={onRegister} className="btn-link">
+              Kayıt ol
+            </button>
+          ) : (
+            <Link to="/register">Kayıt ol</Link>
+          )}
+        </div>
       </div>
     </div>
   );
