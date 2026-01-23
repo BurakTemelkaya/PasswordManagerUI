@@ -163,13 +163,14 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
         {error && <div className="popup-alert popup-alert-error">{error}</div>}
 
         <div className="popup-form-group">
-          <label htmlFor="name">
-            Parola Adı <span className="popup-required">*</span>
+          <label htmlFor="name" className="popup-form-label">
+            Parola Adı <span className="popup-form-required">*</span>
           </label>
           <input
             id="name"
             type="text"
             name="name"
+            className="popup-form-input"
             value={formData.name}
             onChange={handleChange}
             placeholder="örn: GitHub Şifresi"
@@ -178,11 +179,12 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
         </div>
 
         <div className="popup-form-group">
-          <label htmlFor="websiteUrl">Website URL</label>
+          <label htmlFor="websiteUrl" className="popup-form-label">Website URL</label>
           <input
             id="websiteUrl"
             type="url"
             name="websiteUrl"
+            className="popup-form-input"
             value={formData.websiteUrl}
             onChange={handleChange}
             placeholder="https://github.com"
@@ -190,13 +192,14 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
         </div>
 
         <div className="popup-form-group">
-          <label htmlFor="username">
-            Kullanıcı Adı <span className="popup-required">*</span>
+          <label htmlFor="username" className="popup-form-label">
+            Kullanıcı Adı <span className="popup-form-required">*</span>
           </label>
           <input
             id="username"
             type="text"
             name="username"
+            className="popup-form-input"
             value={formData.username}
             onChange={handleChange}
             placeholder="Kullanıcı adını girin"
@@ -205,14 +208,15 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
         </div>
 
         <div className="popup-form-group">
-          <label htmlFor="password">
-            Parola <span className="popup-required">*</span>
+          <label htmlFor="password" className="popup-form-label">
+            Parola <span className="popup-form-required">*</span>
           </label>
-          <div className="popup-password-wrapper">
+          <div className="popup-password-input-wrapper">
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
               name="password"
+              className="popup-form-input"
               value={formData.password}
               onChange={handleChange}
               placeholder="Parolayı girin"
@@ -221,7 +225,7 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="popup-icon-btn"
+              className="popup-input-action"
               title={showPassword ? 'Gizle' : 'Göster'}
             >
               {showPassword ? '🙈' : '👁️'}
@@ -229,7 +233,7 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
             <button
               type="button"
               onClick={generatePassword}
-              className="popup-icon-btn"
+              className="popup-input-action"
               title="Parola üret"
             >
               🔐
@@ -238,10 +242,11 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
         </div>
 
         <div className="popup-form-group">
-          <label htmlFor="description">Açıklama</label>
+          <label htmlFor="description" className="popup-form-label">Açıklama</label>
           <textarea
             id="description"
             name="description"
+            className="popup-form-input popup-form-textarea"
             value={formData.description}
             onChange={handleChange}
             placeholder="Notlar (isteğe bağlı)"

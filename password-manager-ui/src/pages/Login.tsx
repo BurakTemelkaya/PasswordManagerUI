@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { login } from '../helpers/api';
-import { deriveMasterKey, createAuthHash, deriveEncryptionKey, deriveMasterKeySecure } from '../helpers/encryption';
+import { login, getUserKdfParams } from '../helpers/api';
+import { deriveMasterKeyWithKdf, createAuthHash, deriveEncryptionKey, stringToBase64 } from '../helpers/encryption';
 import type { UserForLoginDto } from '../types';
 import '../styles/auth.css';
 
@@ -110,25 +110,39 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
       // localStorage'ı temizle
       localStorage.clear();
 
-      // 1. FRONTEND: Master Key'i türet (PBKDF2 - 200,000 iterasyon, hızlı)
-      // Web Crypto API - çok hızlı ve donanım hızlandırmalı!
-      // ⚠️ ÖNEMLI: userName yerine userId kullanacağız (sonradan gelecek)
-      // Şimdilik userName ile başlat, sonra JWT'den userId al
-      const masterKey = await deriveMasterKey(formData.masterPassword, formData.userName);
+      // 1. Backend'den KDF parametrelerini al
+      console.log('🔑 KDF parametreleri alınıyor...');
+      const kdfParams = await getUserKdfParams(formData.userName);
+      console.log('✅ KDF parametreleri alındı:', { 
+        kdfSalt: kdfParams.kdfSalt.substring(0, 20) + '...', 
+        kdfIterations: kdfParams.kdfIterations 
+      });
 
-      // 2. FRONTEND: Auth Hash'i oluştur (sunucuya gönderilecek)
+      // 2. KDF ile MasterKey türet
+      console.log('🔐 MasterKey türetiliyor...');
+      const masterKey = await deriveMasterKeyWithKdf(
+        formData.masterPassword, 
+        kdfParams.kdfSalt, 
+        kdfParams.kdfIterations
+      );
+      console.log('✅ MasterKey türetildi');
+
+      // 3. MasterKey'den AuthHash oluştur (SHA512)
       const authHash = await createAuthHash(masterKey);
+      console.log('✅ AuthHash oluşturuldu:', authHash.substring(0, 20) + '...');
 
-      // 3. API'ye gönder ve yanıt al
+      // 4. API'ye AuthHash gönder
+      console.log('🔐 Login isteği gönderiliyor...');
       const loginData: UserForLoginDto = {
         userName: formData.userName,
-        password: authHash,
+        password: stringToBase64(authHash), // AuthHash - base64 encoded
         authenticatorCode: formData.authenticatorCode || undefined,
       };
 
       await login(loginData);
+      console.log('✅ Login başarılı');
 
-      // 4. API başarılı oldu, Token localStorage'da kaydedilmiş (api.ts'de)
+      // 5. Token'ı al
       const token = localStorage.getItem('authToken');
       console.log('🔑 localStorage token var mı?', !!token);
       console.log('📦 Token değeri:', token?.substring(0, 20) + '...');
@@ -143,14 +157,14 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
         }
       }
 
-      // Simdi userId ile Master Key'i yeniden türet
-      const masterKeyWithUserId = await deriveMasterKey(formData.masterPassword, userId);
-
-      // Encryption Key'i türet ve kaydet
-      const encryptionKey = await deriveEncryptionKey(masterKeyWithUserId);
+      // 6. Encryption Key türet (aynı MasterKey'den)
+      const encryptionKey = await deriveEncryptionKey(masterKey);
       localStorage.setItem('encryptionKey', encryptionKey);
       localStorage.setItem('userName', formData.userName);
       localStorage.setItem('userId', userId);
+      // KDF parametrelerini kaydet (password update için lazım)
+      localStorage.setItem('kdfSalt', kdfParams.kdfSalt);
+      localStorage.setItem('kdfIterations', kdfParams.kdfIterations.toString());
 
       // Chrome extension storage'a kaydet
       if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -160,6 +174,8 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
           await chrome.storage.session.set({
             authToken: token,
             encryptionKey: encryptionKey,
+            kdfSalt: kdfParams.kdfSalt,
+            kdfIterations: kdfParams.kdfIterations,
           });
           
           // Local storage: Kalıcı veriler - kullanıcı adı hatırlansın
@@ -177,18 +193,6 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
 
       console.log('✅ Tüm storage bilgileri kaydedildi');
       console.log('📍 localStorage keys:', Object.keys(localStorage));
-
-      // 5. ARKA PLANDA: Daha güçlü Master Key'i türet (600,000 iterasyon)
-      // Web Crypto API + Web Worker = UI donmuyor, donanım hızlandırmalı
-      deriveMasterKeySecure(formData.masterPassword, userId)
-        .then(async (secureKey) => {
-          const secureEncryptionKey = await deriveEncryptionKey(secureKey);
-          localStorage.setItem('encryptionKey', secureEncryptionKey);
-          console.log('🔐 Güvenli Master Key türetme tamamlandı (600K iterasyon)');
-        })
-        .catch((err) => {
-          console.error('❌ Güvenli Master Key türetme hatası:', err);
-        });
 
       console.log('🚀 Navigate çalışıyor...');
       

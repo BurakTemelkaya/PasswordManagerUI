@@ -1,5 +1,5 @@
 // Auth API
-export { login, register, logout, revokeToken, updateUserPassword } from './auth';
+export { login, register, logout, revokeToken, updateUserPassword, updateMasterPassword, getUserKdfParams } from './auth';
 
 // Passwords API
 export { 

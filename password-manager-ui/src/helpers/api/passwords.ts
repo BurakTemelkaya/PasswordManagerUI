@@ -15,9 +15,65 @@ export const addPassword = async (data: CreatePasswordDto): Promise<Password> =>
 };
 
 /**
- * Tüm parolaları getir (Sayfalı)
+ * Tüm parolaları getir (Yeni endpoint - pagination yok)
  */
-export const getAllPasswords = async (
+export const getAllPasswords = async (): Promise<Password[]> => {
+  try {
+    const response = await apiClient.get('/Password/GetAll');
+    const data = response.data;
+    
+    console.log('📦 GetAll API raw response:', data);
+    
+    // API yanıtı dizi mi kontrol et
+    if (Array.isArray(data)) {
+      console.log('✅ Direct array format, count:', data.length);
+      return data as Password[];
+    }
+    
+    // .NET ReferenceHandler.Preserve formatı ($id, $values)
+    if (data && Array.isArray(data.$values)) {
+      console.log('✅ .NET $values format, count:', data.$values.length);
+      return data.$values as Password[];
+    }
+    
+    // PagedResponse formatında mı? (items property)
+    if (data && Array.isArray(data.items)) {
+      console.log('✅ PagedResponse format, items count:', data.items.length);
+      return data.items as Password[];
+    }
+    
+    // Data property içinde mi? (ApiResponse wrapper)
+    if (data && Array.isArray(data.data)) {
+      console.log('✅ ApiResponse wrapper format, data count:', data.data.length);
+      return data.data as Password[];
+    }
+    
+    // PascalCase versiyonları (C# backend)
+    if (data && Array.isArray(data.Items)) {
+      console.log('✅ PascalCase Items format, count:', data.Items.length);
+      return data.Items as Password[];
+    }
+    
+    // Tek obje mi? (tek parola varsa)
+    if (data && typeof data === 'object' && data.id) {
+      console.log('✅ Single password object detected');
+      return [data as Password];
+    }
+    
+    // Boş veya beklenmeyen format
+    console.warn('⚠️ Unexpected API response format, returning empty array');
+    return [];
+  } catch (error) {
+    console.error('🔴 Get Passwords API Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Tüm parolaları getir (Sayfalı - Eski endpoint)
+ * @deprecated Artık getAllPasswords kullanın
+ */
+export const getAllPasswordsPaged = async (
   pageIndex: number = 0,
   pageSize: number = 10
 ): Promise<PagedResponse<Password>> => {
@@ -27,7 +83,7 @@ export const getAllPasswords = async (
     });
     return response.data;
   } catch (error) {
-    console.error('🔴 Get Passwords API Error:', error);
+    console.error('🔴 Get Passwords Paged API Error:', error);
     throw error;
   }
 };

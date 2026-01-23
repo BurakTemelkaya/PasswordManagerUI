@@ -181,7 +181,13 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
   return (
     <div className="container">
       <header className="header">
-        <button onClick={() => navigate('/')} className="btn btn-back">
+        <button onClick={() => {
+          if (onCancel) {
+            onCancel();
+          } else {
+            navigate('/');
+          }
+        }} className="btn btn-back">
           ← Geri
         </button>
         <h1>{isEditMode ? 'Parolayı Düzenle' : 'Yeni Parola Ekle'}</h1>
@@ -276,6 +282,11 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
               onChange={handleChange}
               placeholder="Notlar (isteğe bağlı)"
               rows={3}
+              style={{
+                padding: '12px 16px',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}
             />
           </div>
 

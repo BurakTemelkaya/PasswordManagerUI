@@ -210,8 +210,18 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
         {decrypted?.description && (
           <div className="popup-detail-section">
             <div className="popup-detail-label">Notlar</div>
-            <div className="popup-detail-value" style={{ whiteSpace: 'pre-wrap' }}>
-              <span className="popup-detail-value-text">{decrypted.description}</span>
+            <div style={{ 
+              whiteSpace: 'pre-wrap', 
+              padding: '10px 12px', 
+              background: 'var(--pm-bg-tertiary)', 
+              borderRadius: '6px', 
+              fontSize: '13px',
+              color: 'var(--pm-text-secondary)',
+              fontFamily: 'var(--pm-font-mono)',
+              minHeight: '60px',
+              border: '1px solid var(--pm-border)'
+            }}>
+              {decrypted.description}
             </div>
           </div>
         )}

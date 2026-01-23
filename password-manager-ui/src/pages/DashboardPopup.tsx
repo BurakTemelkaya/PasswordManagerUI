@@ -17,10 +17,11 @@ interface DashboardProps {
   onAddPassword?: () => void;
   onViewPassword?: (id: string) => void;
   onEditPassword?: (id: string) => void;
+  onSettings?: () => void;
   currentUrl?: string;
 }
 
-const Dashboard = ({ onLogout, onAddPassword, onViewPassword, currentUrl }: DashboardProps) => {
+const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, currentUrl }: DashboardProps) => {
   const navigate = useNavigate();
   const [passwords, setPasswords] = useState<Password[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,8 +66,7 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, currentUrl }: Dash
         return;
       }
 
-      const data = await getAllPasswords(0, 100);
-      const passwordList = data.items || [];
+      const passwordList = await getAllPasswords();
       setPasswords(passwordList);
 
       // Decrypt all passwords
@@ -249,6 +249,13 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, currentUrl }: Dash
             title="Yeni Parola Ekle"
           >
             ➕
+          </button>
+          <button
+            className="popup-header-btn"
+            onClick={() => onSettings ? onSettings() : navigate('/settings')}
+            title="Ayarlar"
+          >
+            ⚙️
           </button>
           <button
             className="popup-header-btn"

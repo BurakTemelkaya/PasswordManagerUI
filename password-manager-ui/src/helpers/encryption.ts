@@ -58,6 +58,34 @@ const bufferToBase64 = (buffer: ArrayBuffer): string => {
 };
 
 /**
+ * String → Base64 string dönüş (UTF-8)
+ * Backend byte[] alanları için kullanılır
+ */
+export const stringToBase64 = (str: string): string => {
+  // UTF-8 encoding için TextEncoder kullan
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+/**
+ * Kriptografik olarak güvenli rastgele salt üret (CSPRNG)
+ * Register sırasında kullanılır, backend'e gönderilir
+ * 
+ * @param size Salt boyutu (varsayılan: 16 byte = 128 bit)
+ * @returns Base64 encoded salt string
+ */
+export const generateSalt = (size: number = 16): string => {
+  const salt = new Uint8Array(size);
+  crypto.getRandomValues(salt); // CSPRNG - kriptografik olarak güvenli
+  return bufferToBase64(salt.buffer as ArrayBuffer);
+};
+
+/**
  * String → Buffer dönüş (UTF-8)
  */
 const stringToBuffer = (str: string): ArrayBuffer => {
@@ -215,6 +243,80 @@ export const deriveMasterKeySecure = async (
     console.error('Master key derivation error:', error);
     // Son çare - raw password (güvenlik riski ama crash'den iyi)
     return masterPassword;
+  }
+};
+
+/**
+ * KDF parametreleri ile Master Key türet
+ * Backend'den gelen kdfType'ı salt olarak kullanır
+ * 
+ * @param masterPassword Kullanıcının ana parolası
+ * @param kdfType Backend'den gelen salt değeri (base64 encoded)
+ * @param iterations PBKDF2 iterasyon sayısı
+ * @returns Promise<string> - Master Key (hex formatı)
+ */
+export const deriveMasterKeyWithKdf = async (
+  masterPassword: string,
+  kdfType: string,
+  iterations: number = 600000
+): Promise<string> => {
+  try {
+    console.log('🔐 KDF ile Master Key türetiliyor...', { 
+      kdfType: kdfType.substring(0, 15) + '...', 
+      kdfTypeLength: kdfType.length,
+      iterations 
+    });
+    
+    // kdfType base64 encoded - decode et
+    let saltBuffer: ArrayBuffer;
+    try {
+      saltBuffer = base64ToBuffer(kdfType);
+      console.log('✅ kdfType base64 decode başarılı, salt length:', saltBuffer.byteLength);
+    } catch (decodeError) {
+      console.warn('⚠️ Base64 decode başarısız, string olarak kullanılıyor');
+      saltBuffer = stringToBuffer(kdfType);
+    }
+    
+    // Password buffer'a dönüştür
+    const passwordBuffer = stringToBuffer(masterPassword);
+    console.log('📝 Password buffer length:', passwordBuffer.byteLength);
+
+    // PBKDF2 key import
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', 
+      passwordBuffer, 
+      'PBKDF2', 
+      false, 
+      ['deriveKey']
+    );
+    console.log('✅ Key material import başarılı');
+
+    // PBKDF2 çalıştır
+    const derivedKey = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: saltBuffer,
+        iterations: iterations,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt', 'decrypt']
+    );
+    console.log('✅ PBKDF2 deriveKey başarılı');
+
+    // Key'i export et ve hex'e çevir
+    const exportedKey = await crypto.subtle.exportKey('raw', derivedKey);
+    const masterKeyHex = bufferToHex(exportedKey);
+
+    console.log('✅ KDF ile Master Key türetildi');
+    return masterKeyHex;
+  } catch (error: any) {
+    console.error('KDF Master key derivation error:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    throw new Error('Master Key türetme başarısız');
   }
 };
 

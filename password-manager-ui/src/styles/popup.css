@@ -579,7 +579,7 @@
 }
 
 .popup-form-input {
-  padding: var(--pm-space-sm) var(--pm-space-md);
+  padding: var(--pm-space-md) var(--pm-space-lg);
   border: 1px solid var(--pm-border);
   border-radius: var(--pm-radius-md);
   font-size: var(--pm-font-size-md);
@@ -596,12 +596,37 @@
 }
 
 .popup-form-input::placeholder {
-  color: var(--pm-text-tertiary);
+  color: #8b949e;
 }
 
-textarea.popup-form-input {
+textarea.popup-form-input,
+.popup-form-textarea {
   resize: vertical;
   min-height: 80px;
+  max-height: 150px;
+  padding: var(--pm-space-md) var(--pm-space-lg);
+  line-height: 1.6;
+  font-family: var(--pm-font-family);
+  font-size: var(--pm-font-size-md);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-bg-primary);
+  color: var(--pm-text-primary);
+  transition: var(--pm-transition);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+textarea.popup-form-input:focus,
+.popup-form-textarea:focus {
+  outline: none;
+  border-color: var(--pm-primary);
+  box-shadow: 0 0 0 3px var(--pm-primary-light);
+}
+
+textarea.popup-form-input::placeholder,
+.popup-form-textarea::placeholder {
+  color: #8b949e;
 }
 
 .popup-password-input-wrapper {
@@ -617,26 +642,35 @@ textarea.popup-form-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: 1px solid var(--pm-border);
   border-radius: var(--pm-radius-md);
-  background: var(--pm-bg-primary);
+  background: var(--pm-bg-secondary);
   color: var(--pm-text-secondary);
   cursor: pointer;
   transition: var(--pm-transition);
-  font-size: 16px;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 .popup-input-action:hover {
-  background: var(--pm-bg-tertiary);
-  color: var(--pm-text-primary);
+  background: var(--pm-primary);
+  border-color: var(--pm-primary);
+  color: var(--pm-text-inverse);
+  transform: scale(1.05);
+}
+
+.popup-input-action:active {
+  transform: scale(0.98);
 }
 
 .popup-form-actions {
   display: flex;
   gap: var(--pm-space-sm);
-  padding-top: var(--pm-space-md);
+  padding-top: var(--pm-space-lg);
+  margin-top: var(--pm-space-md);
+  border-top: 1px solid var(--pm-border);
 }
 
 .popup-form-actions .popup-btn {
@@ -892,23 +926,33 @@ textarea.popup-form-input {
 
 /* === Back Button === */
 .popup-back-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--pm-space-xs);
-  padding: var(--pm-space-xs) var(--pm-space-sm);
-  border: none;
-  border-radius: var(--pm-radius-sm);
-  background: var(--pm-bg-tertiary);
-  color: var(--pm-text-secondary);
+  padding: var(--pm-space-sm) var(--pm-space-md);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-bg-secondary);
+  color: var(--pm-text-primary);
   font-size: var(--pm-font-size-sm);
+  font-weight: 500;
   font-family: var(--pm-font-family);
   cursor: pointer;
   transition: var(--pm-transition);
+  min-width: 70px;
+  text-decoration: none;
 }
 
 .popup-back-btn:hover {
   background: var(--pm-primary);
+  border-color: var(--pm-primary);
   color: var(--pm-text-inverse);
+  transform: translateX(-2px);
+}
+
+.popup-back-btn:active {
+  transform: translateX(-1px);
 }
 
 /* === Toast === */

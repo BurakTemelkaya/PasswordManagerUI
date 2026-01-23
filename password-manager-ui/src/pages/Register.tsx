@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../helpers/api';
-import { deriveMasterKey, createAuthHash, deriveMasterKeySecure } from '../helpers/encryption';
+import { generateSalt, deriveMasterKeyWithKdf, createAuthHash, deriveEncryptionKey, stringToBase64 } from '../helpers/encryption';
 import type { UserForRegisterDto } from '../types';
 import '../styles/auth.css';
 
@@ -52,47 +52,91 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
     try {
       setLoading(true);
 
-      // 1. FRONTEND: Master Key'i türet (PBKDF2 - Web Crypto API, hızlı!)
-      // ⚠️ NOT: Register sırasında userId bilmiyoruz, userName kullanıyoruz
-      // Login sonrası JWT'den userId alındığında key yeniden türetilecek
-      const masterKey = await deriveMasterKey(formData.masterPassword, formData.userName);
+      // 1. Frontend'de rastgele salt üret (16 byte, CSPRNG)
+      const kdfSalt = generateSalt(16);
+      const kdfIterations = 600000;
+      console.log('🔐 Register: KDF Salt üretildi:', kdfSalt.substring(0, 20) + '...');
 
-      // 2. FRONTEND: Auth Hash'i oluştur (backend'e bu hash'in hash'i kaydedilecek)
+      // 2. Salt ile MasterKey türet
+      console.log('🔐 MasterKey türetiliyor...');
+      const masterKey = await deriveMasterKeyWithKdf(
+        formData.masterPassword, 
+        kdfSalt, 
+        kdfIterations
+      );
+      console.log('✅ MasterKey türetildi');
+
+      // 3. MasterKey'den AuthHash oluştur (SHA512)
       const authHash = await createAuthHash(masterKey);
+      console.log('✅ AuthHash oluşturuldu:', authHash.substring(0, 20) + '...');
 
-      // 3. API'ye kayıt bilgilerini gönder
+      // 4. Backend'e gönder: AuthHash + KdfSalt + KdfIterations
       const registerData: UserForRegisterDto = {
         userName: formData.userName,
         email: formData.email,
-        password: authHash, // Backend bu hash'i bcrypt/argon2 ile hashleyip kaydedecek
+        password: stringToBase64(authHash), // AuthHash - base64 encoded
+        kdfSalt: kdfSalt, // Zaten base64 encoded (generateSalt'tan)
+        kdfIterations: kdfIterations,
       };
 
+      console.log('📤 Backend\'e kayıt isteği gönderiliyor...');
       const registerResponse = await register(registerData);
-      console.log('✅ Kayıt başarılı, userId:', registerResponse.userId);
+      console.log('✅ Kayıt başarılı');
 
-      // 201 Created döndü = başarılı kayıt
-      // Backend response format'ı ne olursa olsun, try bloğu başarılı = kayıt başarılı
-      // ARKA PLANDA: Daha güçlü Master Key'i türet (600,000 iterasyon, Web Worker + Web Crypto)
-      deriveMasterKeySecure(formData.masterPassword, formData.userName)
-        .then(() => {
-          console.log('🔐 Güvenli Master Key türetme tamamlandı (600K iterasyon)');
-        })
-        .catch((err) => {
-          console.error('❌ Güvenli Master Key türetme hatası:', err);
-        });
+      // 5. Encryption Key türet (aynı MasterKey'den)
+      const encryptionKey = await deriveEncryptionKey(masterKey);
+      console.log('✅ Encryption Key türetildi');
+
+      // 6. Token ve bilgileri kaydet
+      if (registerResponse.accessToken?.token) {
+        localStorage.setItem('authToken', registerResponse.accessToken.token);
+        localStorage.setItem('tokenExpiration', registerResponse.accessToken.expirationDate);
+      }
+      localStorage.setItem('encryptionKey', encryptionKey);
+      localStorage.setItem('userName', formData.userName);
+      localStorage.setItem('kdfSalt', kdfSalt);
+      localStorage.setItem('kdfIterations', kdfIterations.toString());
+
+      // Chrome extension storage'a kaydet
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        try {
+          await chrome.storage.session.set({
+            authToken: registerResponse.accessToken?.token,
+            encryptionKey: encryptionKey,
+            kdfSalt: kdfSalt,
+            kdfIterations: kdfIterations,
+          });
+          await chrome.storage.local.set({
+            userName: formData.userName,
+          });
+          console.log('✅ Chrome storage güncellendi');
+        } catch (storageErr) {
+          console.warn('Chrome storage hatası:', storageErr);
+        }
+      }
 
       // Extension popup'ta mı diye kontrol et
       if (onRegisterSuccess) {
         console.log('📱 Extension popup modunda - onRegisterSuccess callback çağrılıyor');
         onRegisterSuccess();
       } else {
-        // Normal web app'ta - login sayfasına yönlendir
-        navigate('/login', { state: { message: 'Kayıt başarılı. Lütfen Master Parolası ile giriş yapın.' } });
+        // Normal web app'ta - dashboard'a yönlendir (zaten giriş yapıldı)
+        navigate('/dashboard');
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Kayıt başarısız. Lütfen tekrar deneyiniz.';
+      console.error('❌ Register hatası:', err);
+      console.error('Error type:', typeof err);
+      console.error('Error message:', err?.message);
+      console.error('Error response:', err?.response?.data);
+      console.error('Error stack:', err?.stack);
+      
+      let errorMessage = 'Kayıt başarısız. Lütfen tekrar deneyiniz.';
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
       setError(errorMessage);
-      console.error(err);
     } finally {
       setLoading(false);
     }

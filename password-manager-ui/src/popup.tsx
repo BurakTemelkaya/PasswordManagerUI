@@ -10,8 +10,9 @@ import DashboardPopup from './pages/DashboardPopup';
 import AddPassword from './pages/AddPassword';
 import ViewPasswordPopup from './pages/ViewPasswordPopup';
 import EditPasswordPopup from './pages/EditPasswordPopup';
+import Settings from './pages/Settings';
 
-type PopupPage = 'login' | 'register' | 'dashboard' | 'add-password' | 'view-password' | 'edit-password' | 'notfound';
+type PopupPage = 'login' | 'register' | 'dashboard' | 'add-password' | 'view-password' | 'edit-password' | 'settings' | 'notfound';
 
 interface PopupState {
   page: PopupPage;
@@ -112,6 +113,10 @@ const Popup: React.FC = () => {
     setState({ page: 'dashboard' });
   };
 
+  const handleSettings = () => {
+    setState({ page: 'settings' });
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     setState({ page: 'login' });
@@ -152,6 +157,19 @@ const Popup: React.FC = () => {
           onLogout={handleLogout}
           onAddPassword={handleAddPassword}
           onViewPassword={handleViewPassword}
+          onSettings={handleSettings}
+        />
+      </div>
+    );
+  }
+
+  // Settings sayfasını render et (popup içinde)
+  if (state.page === 'settings') {
+    return (
+      <div className="popup-page popup-form">
+        <Settings 
+          onBack={handleBackToDashboard}
+          onLogout={handleLogout}
         />
       </div>
     );

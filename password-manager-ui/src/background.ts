@@ -125,8 +125,8 @@ async function decryptPassword(encrypted: EncryptedPassword, encryptionKey: stri
 // ============================================
 async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedPassword[]> {
   try {
-    // Get all passwords with pagination
-    const response = await fetch(`${apiUrl}/Password?PageIndex=0&PageSize=100`, {
+    // Get all passwords (yeni endpoint)
+    const response = await fetch(`${apiUrl}/Password/GetAll`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -141,9 +141,8 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
     const data = await response.json();
     console.log('API response:', data);
     
-    // Handle paged response format
-    const items = data.items || data.$values || data || [];
-    return items;
+    // Direkt array dönüyor
+    return Array.isArray(data) ? data : (data.$values || []);
   } catch (error) {
     console.error('Fetch passwords error:', error);
     return [];

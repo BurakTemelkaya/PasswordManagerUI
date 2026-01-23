@@ -238,9 +238,15 @@ textarea::placeholder {
 
 textarea {
   resize: vertical;
-  min-height: 100px;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+  min-height: 80px;
+  padding: var(--spacing-md) var(--spacing-lg);
+  line-height: 1.5;
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
 }
 
 /* ===== Buttons ===== */

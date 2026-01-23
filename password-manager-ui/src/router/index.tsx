@@ -8,6 +8,7 @@ import Register from '../pages/Register';
 import AddPassword from '../pages/AddPassword';
 import EditPassword from '../pages/EditPassword';
 import ViewPassword from '../pages/ViewPassword';
+import Settings from '../pages/Settings';
 import NotFound from '../pages/NotFound';
 
 // Protected Route komponenti
@@ -63,6 +64,14 @@ export const AppRouter = () => {
           element={
             <ProtectedRoute>
               <EditPassword />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />

@@ -1,4 +1,13 @@
 /**
+ * KDF (Key Derivation Function) parametreleri
+ * Login öncesi /User/GetUserKdfParams endpoint'inden alınır
+ */
+export interface KdfParams {
+  kdfSalt: string; // Base64 encoded salt (16 byte)
+  kdfIterations: number; // PBKDF2 iterasyon sayısı (600000)
+}
+
+/**
  * Kullanıcı giriş DTO
  */
 export interface UserForLoginDto {
@@ -13,7 +22,9 @@ export interface UserForLoginDto {
 export interface UserForRegisterDto {
   userName: string;
   email: string;
-  password: string;
+  password: string; // AuthHash (base64 encoded)
+  kdfSalt: string; // Base64 encoded salt (16 byte)
+  kdfIterations: number; // PBKDF2 iterasyon sayısı (600000)
 }
 
 /**
@@ -34,12 +45,25 @@ export interface LoginResponse {
 }
 
 /**
+ * Refresh Token bilgileri
+ */
+export interface RefreshToken {
+  id: string;
+  userId: string;
+  token: string;
+  expirationDate: string;
+  createdByIp: string;
+}
+
+/**
  * Register Response
+ * Backend kayıt sonrası token ve KDF bilgilerini döner
  */
 export interface RegisterResponse {
-  success: boolean;
-  message?: string;
-  userId?: string;
+  accessToken: AccessToken;
+  refreshToken: RefreshToken;
+  kdfSalt: string; // Base64 encoded salt (encryption için)
+  kdfIterations: number; // PBKDF2 iterasyon sayısı
 }
 
 /**
@@ -111,4 +135,28 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   errors?: string[];
+}
+
+/**
+ * Master Password güncelleme için re-encrypt edilmiş parola DTO
+ */
+export interface UpdatedPasswordForMasterDto {
+  id: string;
+  encryptedName: string;
+  encryptedUserName: string;
+  encryptedPassword: string;
+  encryptedDescription: string;
+  encryptedWebSiteUrl: string;
+  iv: string;
+  userId: string;
+}
+
+/**
+ * Master Password güncelleme DTO
+ */
+export interface UpdateMasterPasswordDto {
+  userId?: string;
+  existPassword: string;
+  newPassword: string;
+  updatedPasswords: UpdatedPasswordForMasterDto[];
 }
