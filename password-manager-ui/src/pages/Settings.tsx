@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { updateMasterPassword, getAllPasswords, logout } from '../helpers/api';
 import { deriveMasterKeyWithKdf, deriveEncryptionKey } from '../helpers/encryption';
+import { importPasswords, exportPasswords, downloadFile, type ExportFormat, type ImportResult } from '../helpers/importExport';
 import '../styles/auth.css';
 
 interface SettingsProps {
@@ -30,6 +31,13 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
   const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
   const [kdfSalt, setKdfSalt] = useState<string | null>(null);
   const [kdfIterations, setKdfIterations] = useState<number>(600000);
+
+  // Import/Export
+  const [importLoading, setImportLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // localStorage'dan kullanıcı bilgilerini al
@@ -194,6 +202,75 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
       onLogout();
     } else {
       navigate('/login');
+    }
+  };
+
+  // Import handler
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !encryptionKey) return;
+
+    setImportLoading(true);
+    setImportResult(null);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const content = await file.text();
+      const result = await importPasswords(content, file.name, encryptionKey);
+      
+      setImportResult(result);
+      
+      if (result.success > 0) {
+        setSuccess(`${result.success} parola başarıyla import edildi!`);
+      }
+      
+      if (result.failed > 0) {
+        setError(`${result.failed} parola import edilemedi.`);
+      }
+    } catch (err) {
+      setError('Import hatası: ' + (err as Error).message);
+    } finally {
+      setImportLoading(false);
+      // Input'u sıfırla
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Export handler
+  const handleExport = async () => {
+    if (!encryptionKey) {
+      setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+      return;
+    }
+
+    setExportLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const passwords = await getAllPasswords();
+      
+      if (passwords.length === 0) {
+        setError('Export edilecek parola bulunamadı.');
+        setExportLoading(false);
+        return;
+      }
+
+      const content = await exportPasswords(passwords, encryptionKey, exportFormat);
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fileName = `passwords_export_${timestamp}.${exportFormat}`;
+      const mimeType = exportFormat === 'json' ? 'application/json' : 'text/csv';
+      
+      downloadFile(content, fileName, mimeType);
+      setSuccess(`${passwords.length} parola başarıyla export edildi!`);
+    } catch (err) {
+      setError('Export hatası: ' + (err as Error).message);
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -419,18 +496,218 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
             </form>
           </div>
 
-          {/* Diğer Ayarlar Bölümü (Gelecek için placeholder) */}
+          {/* Import/Export Bölümü */}
           <div className="card" style={{ 
             marginTop: '24px', 
             padding: '24px', 
             borderRadius: '12px', 
-            background: 'var(--bg-card)',
-            opacity: 0.7 
+            background: 'var(--bg-card)'
           }}>
-            <h2 style={{ marginBottom: '12px' }}>📋 Diğer Ayarlar</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-              Yakında eklenecek...
-            </p>
+            <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              📦 Import / Export
+            </h2>
+
+            {/* Import Result */}
+            {importResult && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                background: importResult.failed > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                border: `1px solid ${importResult.failed > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+              }}>
+                <p style={{ margin: 0, fontSize: '14px' }}>
+                  ✅ Başarılı: {importResult.success} | ❌ Başarısız: {importResult.failed}
+                </p>
+                {importResult.errors.length > 0 && (
+                  <details style={{ marginTop: '8px' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: '13px', color: 'var(--text-muted)' }}>
+                      Hata detayları
+                    </summary>
+                    <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '12px' }}>
+                      {importResult.errors.slice(0, 5).map((err, i) => (
+                        <li key={i} style={{ color: 'var(--text-muted)' }}>{err}</li>
+                      ))}
+                      {importResult.errors.length > 5 && (
+                        <li style={{ color: 'var(--text-muted)' }}>
+                          ... ve {importResult.errors.length - 5} hata daha
+                        </li>
+                      )}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {/* Import Section */}
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 500 }}>
+                📥 Parola Import Et
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                Chrome, Firefox, Bitwarden, LastPass veya 1Password'dan export edilen CSV/JSON dosyasını yükleyin.
+              </p>
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.json"
+                onChange={handleImport}
+                style={{ display: 'none' }}
+                id="import-file"
+              />
+              
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importLoading || !encryptionKey}
+                className="btn btn-secondary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px 20px',
+                  fontSize: '14px'
+                }}
+              >
+                {importLoading ? (
+                  <>
+                    <span className="spinner" style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid rgba(0,0,0,0.2)',
+                      borderTop: '2px solid currentColor',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                    Import ediliyor...
+                  </>
+                ) : (
+                  <>📂 Dosya Seç (CSV/JSON)</>
+                )}
+              </button>
+            </div>
+
+            {/* Export Section */}
+            <div>
+              <h3 style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 500 }}>
+                📤 Parola Export Et
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                Tüm parolalarınızı başka parola yöneticilerine aktarabilirsiniz.
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Format Seçimi */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `2px solid ${exportFormat === 'csv' ? 'var(--primary-color)' : 'var(--border-color)'}`,
+                    background: exportFormat === 'csv' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}>
+                    <input
+                      type="radio"
+                      name="exportFormat"
+                      value="csv"
+                      checked={exportFormat === 'csv'}
+                      onChange={() => setExportFormat('csv')}
+                      style={{ display: 'none' }}
+                    />
+                    📊 CSV
+                  </label>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `2px solid ${exportFormat === 'json' ? 'var(--primary-color)' : 'var(--border-color)'}`,
+                    background: exportFormat === 'json' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}>
+                    <input
+                      type="radio"
+                      name="exportFormat"
+                      value="json"
+                      checked={exportFormat === 'json'}
+                      onChange={() => setExportFormat('json')}
+                      style={{ display: 'none' }}
+                    />
+                    📋 JSON
+                  </label>
+                </div>
+
+                {/* Export Button */}
+                <button
+                  onClick={handleExport}
+                  disabled={exportLoading || !encryptionKey}
+                  className="btn btn-primary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '12px 20px',
+                    fontSize: '14px'
+                  }}
+                >
+                  {exportLoading ? (
+                    <>
+                      <span className="spinner" style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        borderTop: '2px solid white',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }} />
+                      Export ediliyor...
+                    </>
+                  ) : (
+                    <>💾 Export Et</>
+                  )}
+                </button>
+              </div>
+
+              {/* Uyarı */}
+              <div style={{
+                marginTop: '16px',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)'
+              }}>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
+                  ⚠️ <strong>Dikkat:</strong> Export edilen dosya parolalarınızı şifresiz olarak içerir. 
+                  Dosyayı güvenli bir şekilde saklayın ve işiniz bitince silin.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Desteklenen Formatlar Bilgisi */}
+          <div className="card" style={{ 
+            marginTop: '24px', 
+            padding: '24px', 
+            borderRadius: '12px', 
+            background: 'var(--bg-card)'
+          }}>
+            <h2 style={{ marginBottom: '16px', fontSize: '16px' }}>
+              ℹ️ Desteklenen Formatlar
+            </h2>
+            <div style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
+              <div>✅ <strong>Chrome/Edge</strong> - CSV export</div>
+              <div>✅ <strong>Firefox</strong> - CSV export</div>
+              <div>✅ <strong>Bitwarden</strong> - CSV/JSON export</div>
+              <div>✅ <strong>LastPass</strong> - CSV export</div>
+              <div>✅ <strong>1Password</strong> - CSV export</div>
+              <div>✅ <strong>Genel CSV</strong> - name, url, username, password, notes sütunları</div>
+            </div>
           </div>
         </div>
       </main>
