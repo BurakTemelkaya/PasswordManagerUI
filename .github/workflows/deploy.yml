@@ -44,5 +44,5 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./password-manager-ui/dist/
-          server-dir: /
+          server-dir: /parolayoneticisi.buraktemelkaya.com/
           dangerous-clean-slate: false
