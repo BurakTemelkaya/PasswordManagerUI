@@ -299,6 +299,22 @@ function getLockIcon(): string {
   return `<svg viewBox="0 0 24 24"><path d="M12 1C8.676 1 6 3.676 6 7v2H4v14h16V9h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 10c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>`;
 }
 
+/**
+ * URL'yi kısaltarak sadece domain kısmını göster
+ * Örnek: "https://accounts.google.com/v3/signin/..." -> "accounts.google.com"
+ */
+function shortenUrl(url: string): string {
+  if (!url) return '';
+  try {
+    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+    return urlObj.hostname;
+  } catch {
+    // URL parse edilemezse, / öncesini al
+    const match = url.match(/^(?:https?:\/\/)?([^\/]+)/);
+    return match ? match[1] : url;
+  }
+}
+
 function getExternalLinkIcon(): string {
   return `<svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7zm-2 16H5V7h7V5H3v16h14v-7h-2v5h-3z"/></svg>`;
 }
@@ -365,9 +381,13 @@ function findPasswordFields(): HTMLInputElement[] {
 }
 
 function findUsernameFields(): HTMLInputElement[] {
+  // Sadece login/auth ile ilgili input'ları seç
+  // input[type="text"] genel seçicisini kaldırdık - artık sadece belirli alanlarda çalışıyor
   const selectors = [
     'input[autocomplete="username"]',
     'input[autocomplete="email"]',
+    'input[autocomplete="current-password"]',
+    'input[autocomplete="new-password"]',
     'input[type="email"]',
     'input[name*="user" i]',
     'input[name*="email" i]',
@@ -376,11 +396,7 @@ function findUsernameFields(): HTMLInputElement[] {
     'input[id*="user" i]',
     'input[id*="email" i]',
     'input[id*="login" i]',
-    'input[id*="account" i]',
-    'input[placeholder*="email" i]',
-    'input[placeholder*="kullanıcı" i]',
-    'input[placeholder*="user" i]',
-    'input[type="text"]'
+    'input[id*="account" i]'
   ];
   
   const found: HTMLInputElement[] = [];
@@ -388,7 +404,7 @@ function findUsernameFields(): HTMLInputElement[] {
   
   for (const selector of selectors) {
     document.querySelectorAll<HTMLInputElement>(selector).forEach(input => {
-      if (!seen.has(input) && isVisible(input) && !isSearchInput(input)) {
+      if (!seen.has(input) && isVisible(input) && !isSearchInput(input) && isAutofillCandidate(input)) {
         seen.add(input);
         found.push(input);
       }
@@ -396,6 +412,39 @@ function findUsernameFields(): HTMLInputElement[] {
   }
   
   return found;
+}
+
+/**
+ * Input'un otomatik doldurma için uygun olup olmadığını kontrol et
+ * Sadece password, email veya autocomplete attribute'u olan alanlarda çalışır
+ */
+function isAutofillCandidate(input: HTMLInputElement): boolean {
+  const type = input.type.toLowerCase();
+  const autocomplete = (input.autocomplete || '').toLowerCase();
+  
+  // Password alanları her zaman uygun
+  if (type === 'password') return true;
+  
+  // Email alanları uygun
+  if (type === 'email') return true;
+  
+  // Autocomplete attribute'u olan alanlar uygun
+  const validAutocompletes = [
+    'username', 'email', 'current-password', 'new-password',
+    'cc-name', 'cc-number', 'name', 'given-name', 'family-name'
+  ];
+  if (validAutocompletes.some(ac => autocomplete.includes(ac))) return true;
+  
+  // Autocomplete="off" veya "on" ise ve login-related name/id varsa kabul et
+  const name = (input.name || '').toLowerCase();
+  const id = (input.id || '').toLowerCase();
+  const loginKeywords = ['user', 'email', 'login', 'account', 'mail'];
+  
+  if (loginKeywords.some(kw => name.includes(kw) || id.includes(kw))) {
+    return true;
+  }
+  
+  return false;
 }
 
 // Arama inputlarını filtrele
@@ -494,8 +543,15 @@ function attachInputListeners() {
   });
   
   // Username/Email field'lara da listener ekle (multi-step login için)
+  // Sadece uygun alanlarda çalış
   usernameFields.forEach(input => {
     if (input.getAttribute('data-pm-attached')) return;
+    
+    // Otomatik doldurma için uygun değilse atla
+    if (!isAutofillCandidate(input)) {
+      console.log('🔐 Atlanıyor (uygun değil):', input.name || input.id || 'unnamed');
+      return;
+    }
     
     // Password field ile aynı formda değilse veya password field yoksa
     const form = input.closest('form');
@@ -602,11 +658,12 @@ async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'us
     if (isPasswordStep && lastFilledEntry) {
       // Önce daha önce seçilen entry'yi öne çıkar
       const initial = (lastFilledEntry.name || lastFilledEntry.websiteUrl || 'P').charAt(0).toUpperCase();
+      const displayName = lastFilledEntry.name || shortenUrl(lastFilledEntry.websiteUrl);
       html += `
         <div class="pm-password-item pm-suggested" data-id="${lastFilledEntry.id}">
           <div class="pm-password-favicon">${initial}</div>
           <div class="pm-password-info">
-            <div class="pm-password-name">${lastFilledEntry.name || lastFilledEntry.websiteUrl}</div>
+            <div class="pm-password-name">${displayName}</div>
             <div class="pm-password-username">${lastFilledEntry.username} <span class="pm-suggested-badge">Önerilen</span></div>
           </div>
           <div class="pm-password-fill-icon" title="Şifreyi doldur">
@@ -618,11 +675,12 @@ async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'us
       // Diğer şifreleri de göster
       authState.passwords.filter(p => p.id !== lastFilledEntry!.id).forEach(pwd => {
         const pwdInitial = (pwd.name || pwd.websiteUrl || 'P').charAt(0).toUpperCase();
+        const pwdDisplayName = pwd.name || shortenUrl(pwd.websiteUrl);
         html += `
           <div class="pm-password-item" data-id="${pwd.id}">
             <div class="pm-password-favicon">${pwdInitial}</div>
             <div class="pm-password-info">
-              <div class="pm-password-name">${pwd.name || pwd.websiteUrl}</div>
+              <div class="pm-password-name">${pwdDisplayName}</div>
               <div class="pm-password-username">${pwd.username}</div>
             </div>
             <div class="pm-password-fill-icon" title="Doldur">
@@ -635,11 +693,12 @@ async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'us
       // Normal liste
       authState.passwords.forEach(pwd => {
         const initial = (pwd.name || pwd.websiteUrl || 'P').charAt(0).toUpperCase();
+        const displayName = pwd.name || shortenUrl(pwd.websiteUrl);
         html += `
           <div class="pm-password-item" data-id="${pwd.id}">
             <div class="pm-password-favicon">${initial}</div>
             <div class="pm-password-info">
-              <div class="pm-password-name">${pwd.name || pwd.websiteUrl}</div>
+              <div class="pm-password-name">${displayName}</div>
               <div class="pm-password-username">${pwd.username}</div>
             </div>
             <div class="pm-password-fill-icon" title="Doldur">

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { UserForLoginDto, UserForRegisterDto, LoginResponse, RegisterResponse, UpdateMasterPasswordDto, KdfParams } from '../../types';
+import type { UserForLoginDto, UserForRegisterDto, LoginResponse, RegisterResponse, UpdateMasterPasswordDto, KdfParams, RefreshTokenResponse } from '../../types';
 import { 
   deriveMasterKeyWithKdf, 
   deriveEncryptionKey, 
@@ -99,6 +99,13 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
       localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
       console.log('✅ Token localStorage\'a kaydedildi');
     }
+    
+    // Refresh token'ı da sakla
+    if (response.data.refreshToken?.token) {
+      localStorage.setItem('refreshToken', response.data.refreshToken.token);
+      localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
+      console.log('✅ Refresh token localStorage\'a kaydedildi');
+    }
 
     return response.data;
   } catch (error: any) {
@@ -120,9 +127,45 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
 export const logout = () => {
   localStorage.removeItem('authToken');
   localStorage.removeItem('tokenExpiration');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('refreshTokenExpiration');
   localStorage.removeItem('encryptionKey');
   localStorage.removeItem('userName');
+  localStorage.removeItem('passwords');
   console.log('✅ Çıkış yapıldı');
+};
+
+/**
+ * Refresh token ile yeni access token al
+ * @param refreshToken Mevcut refresh token
+ * @returns Yeni access token ve refresh token
+ */
+export const refreshAccessToken = async (refreshToken: string): Promise<RefreshTokenResponse> => {
+  try {
+    console.log('🔄 Refresh token ile yeni token alınıyor...');
+    
+    const response = await apiClient.post<RefreshTokenResponse>('/Auth/RefreshToken', {
+      refreshToken
+    });
+    
+    // Yeni token'ları sakla
+    if (response.data.accessToken?.token) {
+      localStorage.setItem('authToken', response.data.accessToken.token);
+      localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
+      console.log('✅ Yeni access token kaydedildi');
+    }
+    
+    if (response.data.refreshToken?.token) {
+      localStorage.setItem('refreshToken', response.data.refreshToken.token);
+      localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
+      console.log('✅ Yeni refresh token kaydedildi');
+    }
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('🔴 Refresh Token API Error:', error);
+    throw error;
+  }
 };
 
 /**

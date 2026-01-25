@@ -40,6 +40,7 @@ export interface AccessToken {
  */
 export interface LoginResponse {
   accessToken: AccessToken;
+  refreshToken?: RefreshToken;
   requiredAuthenticatorType: string | null;
   encryptionKey: string | null;
 }
@@ -64,6 +65,21 @@ export interface RegisterResponse {
   refreshToken: RefreshToken;
   kdfSalt: string; // Base64 encoded salt (encryption için)
   kdfIterations: number; // PBKDF2 iterasyon sayısı
+}
+
+/**
+ * Refresh Token Request - Token yenileme için
+ */
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+/**
+ * Refresh Token Response - Yeni access ve refresh token
+ */
+export interface RefreshTokenResponse {
+  accessToken: AccessToken;
+  refreshToken: RefreshToken;
 }
 
 /**
