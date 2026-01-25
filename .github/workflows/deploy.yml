@@ -45,4 +45,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./password-manager-ui/dist/
           server-dir: /parolayoneticisi.buraktemelkaya.com/
-          dangerous-clean-slate: false
+          protocol: ftp
+          port: 21
+          timeout: 60000
+          log-level: verbose
