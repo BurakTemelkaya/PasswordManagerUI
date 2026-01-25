@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { addPassword, updatePassword, getPasswordById } from '../helpers/api';
 import { encryptDataForAPI, decryptDataFromAPI } from '../helpers/encryption';
 import type { CreatePasswordDto, UpdatedPasswordDto } from '../types';
+import { ApiError } from '../types';
 import '../styles/auth.css';
 
 interface AddPasswordProps {
@@ -165,9 +166,14 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
         // Normal web app'ta - dashboard'a yönlendir
         navigate('/');
       }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'İşlem başarısız. Lütfen tekrar deneyiniz.';
-      setError(errorMessage);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('İşlem başarısız. Lütfen tekrar deneyiniz.');
+      }
       console.error(err);
     } finally {
       setLoading(false);

@@ -15,14 +15,14 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; default-src 'self'; connect-src 'self' https://localhost:* http://localhost:* https://api.passwordmanager.com wss://localhost:*; style-src 'self' 'unsafe-inline'; img-src 'self' https://www.google.com https://*.googleusercontent.com https://*.gstatic.com data:;"
+    "extension_pages": "script-src 'self'; object-src 'self'; default-src 'self'; connect-src 'self' https://* http://localhost:* wss://*; style-src 'self' 'unsafe-inline'; img-src 'self' https://www.google.com https://*.googleusercontent.com https://*.gstatic.com data:;"
   },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_popup": "public/popup.html",
+    "default_popup": "popup.html",
     "default_title": "Parola Yöneticisi"
   },
   "content_scripts": [

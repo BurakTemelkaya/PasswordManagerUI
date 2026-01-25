@@ -16,6 +16,9 @@ import type { Password } from '../../types';
  */
 export const getUserKdfParams = async (userName: string): Promise<KdfParams> => {
   try {
+    console.log('🔄 Getting KDF params for:', userName);
+    console.log('🔗 API Base URL:', apiClient.defaults.baseURL);
+    
     const response = await apiClient.get('/User/GetUserKdfParams', {
       params: { UserName: userName }
     });
@@ -33,9 +36,19 @@ export const getUserKdfParams = async (userName: string): Promise<KdfParams> => 
     });
     
     return { kdfSalt, kdfIterations };
-  } catch (error) {
+  } catch (error: any) {
     console.error('🔴 Get KDF Params API Error:', error);
-    throw error; // Artık varsayılan döndürme - hata durumunda login başarısız olmalı
+    console.error('🔴 Error message:', error?.message);
+    console.error('🔴 Error response:', error?.response?.data);
+    console.error('🔴 Error status:', error?.response?.status);
+    console.error('🔴 Error code:', error?.code);
+    
+    // CORS veya network hatası olabilir
+    if (error?.code === 'ERR_NETWORK' || !error?.response) {
+      throw new Error('API bağlantı hatası. CORS veya network problemi olabilir.');
+    }
+    
+    throw error;
   }
 };
 

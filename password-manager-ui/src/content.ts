@@ -33,6 +33,8 @@ let authState: AuthState = {
 let activeDropdown: HTMLElement | null = null;
 let activeInput: HTMLInputElement | null = null;
 let currentHostname = window.location.hostname;
+let lastFilledUsername: string | null = null; // Multi-step login için son doldurulan kullanıcı adı
+let lastFilledEntry: PasswordEntry | null = null; // Son seçilen parola entry'si
 
 // ============================================
 // STYLES - Bitwarden Dark Theme
@@ -99,6 +101,26 @@ const OVERLAY_STYLES = `
     background: #363b42;
   }
   
+  /* Multi-step login suggested item */
+  .pm-password-item.pm-suggested {
+    background: rgba(23, 93, 220, 0.1);
+    border-left: 3px solid #175ddc;
+  }
+  
+  .pm-password-item.pm-suggested:hover {
+    background: rgba(23, 93, 220, 0.2);
+  }
+  
+  .pm-suggested-badge {
+    background: #175ddc;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 500;
+  }
+
   .pm-password-favicon {
     width: 32px;
     height: 32px;
@@ -350,8 +372,14 @@ function findUsernameFields(): HTMLInputElement[] {
     'input[name*="user" i]',
     'input[name*="email" i]',
     'input[name*="login" i]',
+    'input[name*="account" i]',
     'input[id*="user" i]',
     'input[id*="email" i]',
+    'input[id*="login" i]',
+    'input[id*="account" i]',
+    'input[placeholder*="email" i]',
+    'input[placeholder*="kullanıcı" i]',
+    'input[placeholder*="user" i]',
     'input[type="text"]'
   ];
   
@@ -360,7 +388,7 @@ function findUsernameFields(): HTMLInputElement[] {
   
   for (const selector of selectors) {
     document.querySelectorAll<HTMLInputElement>(selector).forEach(input => {
-      if (!seen.has(input) && isVisible(input)) {
+      if (!seen.has(input) && isVisible(input) && !isSearchInput(input)) {
         seen.add(input);
         found.push(input);
       }
@@ -370,6 +398,72 @@ function findUsernameFields(): HTMLInputElement[] {
   return found;
 }
 
+// Arama inputlarını filtrele
+function isSearchInput(input: HTMLInputElement): boolean {
+  const name = (input.name || '').toLowerCase();
+  const id = (input.id || '').toLowerCase();
+  const placeholder = (input.placeholder || '').toLowerCase();
+  const type = input.type.toLowerCase();
+  const autocomplete = (input.autocomplete || '').toLowerCase();
+  
+  // Search input ise atla
+  if (type === 'search') return true;
+  if (autocomplete === 'off' && (name.includes('search') || id.includes('search') || placeholder.includes('ara'))) return true;
+  if (name.includes('search') || id.includes('search') || placeholder.includes('search')) return true;
+  
+  return false;
+}
+
+// Login formu olup olmadığını kontrol et
+function isLoginForm(): boolean {
+  return findPasswordFields().length > 0 || hasStandaloneUsernameField();
+}
+
+// Sadece username/email alanı olan sayfa mı? (multi-step login)
+function hasStandaloneUsernameField(): boolean {
+  const passwordFields = findPasswordFields();
+  const usernameFields = findUsernameFields();
+  
+  // Password yok ama username var - multi-step login olabilir
+  if (passwordFields.length === 0 && usernameFields.length > 0) {
+    // En az bir username field'ın form içinde veya login-related olup olmadığını kontrol et
+    for (const input of usernameFields) {
+      const form = input.closest('form');
+      const formAction = form?.action?.toLowerCase() || '';
+      const formId = form?.id?.toLowerCase() || '';
+      const formClass = form?.className?.toLowerCase() || '';
+      
+      // Login/signin formunda mı?
+      if (formAction.includes('login') || formAction.includes('signin') || formAction.includes('auth') ||
+          formId.includes('login') || formId.includes('signin') ||
+          formClass.includes('login') || formClass.includes('signin')) {
+        return true;
+      }
+      
+      // Submit butonu var mı?
+      if (form) {
+        const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+        if (submitBtn) return true;
+      }
+      
+      // Standalone input ama Next/Continue/Devam butonu var mı?
+      const parent = input.parentElement?.parentElement?.parentElement;
+      if (parent) {
+        const buttons = parent.querySelectorAll('button');
+        for (const btn of buttons) {
+          const btnText = btn.textContent?.toLowerCase() || '';
+          if (btnText.includes('next') || btnText.includes('continue') || btnText.includes('devam') || 
+              btnText.includes('ileri') || btnText.includes('sonraki')) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  
+  return false;
+}
+
 // ============================================
 // DROPDOWN MANAGEMENT
 // ============================================
@@ -377,19 +471,48 @@ function attachInputListeners() {
   injectStyles();
   
   const passwordFields = findPasswordFields();
-  console.log('🔐 Password alanları bulundu:', passwordFields.length);
+  const usernameFields = findUsernameFields();
   
+  console.log('🔐 Password alanları bulundu:', passwordFields.length);
+  console.log('🔐 Username alanları bulundu:', usernameFields.length);
+  
+  // Password field'lara listener ekle
   passwordFields.forEach(input => {
     if (input.getAttribute('data-pm-attached')) return;
     input.setAttribute('data-pm-attached', 'true');
     
-    console.log('🔐 Listener ekleniyor:', input.name || input.id || 'unnamed');
+    console.log('🔐 Password listener ekleniyor:', input.name || input.id || 'unnamed');
     
-    // Focus/click handler - show dropdown
     const showHandler = (e: Event) => {
       e.stopPropagation();
-      console.log('🔐 Input focus/click');
-      showDropdown(input);
+      console.log('🔐 Password input focus/click');
+      showDropdown(input, 'password');
+    };
+    
+    input.addEventListener('focus', showHandler);
+    input.addEventListener('click', showHandler);
+  });
+  
+  // Username/Email field'lara da listener ekle (multi-step login için)
+  usernameFields.forEach(input => {
+    if (input.getAttribute('data-pm-attached')) return;
+    
+    // Password field ile aynı formda değilse veya password field yoksa
+    const form = input.closest('form');
+    const hasPasswordInSameForm = form && form.querySelector('input[type="password"]');
+    
+    // Eğer aynı formda password varsa, username'e ayrıca listener ekleme
+    // Çünkü password'a tıklayınca zaten ikisini de dolduracak
+    if (hasPasswordInSameForm) return;
+    
+    input.setAttribute('data-pm-attached', 'true');
+    
+    console.log('🔐 Username listener ekleniyor:', input.name || input.id || 'unnamed');
+    
+    const showHandler = (e: Event) => {
+      e.stopPropagation();
+      console.log('🔐 Username input focus/click');
+      showDropdown(input, 'username');
     };
     
     input.addEventListener('focus', showHandler);
@@ -397,8 +520,8 @@ function attachInputListeners() {
   });
 }
 
-async function showDropdown(input: HTMLInputElement) {
-  console.log('🔐 showDropdown çağrıldı');
+async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'username' = 'password') {
+  console.log('🔐 showDropdown çağrıldı, type:', inputType);
   
   // Eğer aynı input için zaten dropdown açıksa, kapatma
   if (activeDropdown && activeInput === input) {
@@ -473,21 +596,59 @@ async function showDropdown(input: HTMLInputElement) {
     // Show passwords - Bitwarden style
     let html = '';
     
-    authState.passwords.forEach(pwd => {
-      const initial = (pwd.name || pwd.websiteUrl || 'P').charAt(0).toUpperCase();
+    // Multi-step login: Eğer daha önce username doldurulmuşsa ve şimdi password alanındayız
+    const isPasswordStep = inputType === 'password' && lastFilledEntry;
+    
+    if (isPasswordStep && lastFilledEntry) {
+      // Önce daha önce seçilen entry'yi öne çıkar
+      const initial = (lastFilledEntry.name || lastFilledEntry.websiteUrl || 'P').charAt(0).toUpperCase();
       html += `
-        <div class="pm-password-item" data-id="${pwd.id}">
+        <div class="pm-password-item pm-suggested" data-id="${lastFilledEntry.id}">
           <div class="pm-password-favicon">${initial}</div>
           <div class="pm-password-info">
-            <div class="pm-password-name">${pwd.name || pwd.websiteUrl}</div>
-            <div class="pm-password-username">${pwd.username}</div>
+            <div class="pm-password-name">${lastFilledEntry.name || lastFilledEntry.websiteUrl}</div>
+            <div class="pm-password-username">${lastFilledEntry.username} <span class="pm-suggested-badge">Önerilen</span></div>
           </div>
-          <div class="pm-password-fill-icon" title="Doldur">
+          <div class="pm-password-fill-icon" title="Şifreyi doldur">
             ${getExternalLinkIcon()}
           </div>
         </div>
       `;
-    });
+      
+      // Diğer şifreleri de göster
+      authState.passwords.filter(p => p.id !== lastFilledEntry!.id).forEach(pwd => {
+        const pwdInitial = (pwd.name || pwd.websiteUrl || 'P').charAt(0).toUpperCase();
+        html += `
+          <div class="pm-password-item" data-id="${pwd.id}">
+            <div class="pm-password-favicon">${pwdInitial}</div>
+            <div class="pm-password-info">
+              <div class="pm-password-name">${pwd.name || pwd.websiteUrl}</div>
+              <div class="pm-password-username">${pwd.username}</div>
+            </div>
+            <div class="pm-password-fill-icon" title="Doldur">
+              ${getExternalLinkIcon()}
+            </div>
+          </div>
+        `;
+      });
+    } else {
+      // Normal liste
+      authState.passwords.forEach(pwd => {
+        const initial = (pwd.name || pwd.websiteUrl || 'P').charAt(0).toUpperCase();
+        html += `
+          <div class="pm-password-item" data-id="${pwd.id}">
+            <div class="pm-password-favicon">${initial}</div>
+            <div class="pm-password-info">
+              <div class="pm-password-name">${pwd.name || pwd.websiteUrl}</div>
+              <div class="pm-password-username">${pwd.username}</div>
+            </div>
+            <div class="pm-password-fill-icon" title="Doldur">
+              ${getExternalLinkIcon()}
+            </div>
+          </div>
+        `;
+      });
+    }
     
     content.innerHTML = html;
     
@@ -497,7 +658,23 @@ async function showDropdown(input: HTMLInputElement) {
         const id = item.getAttribute('data-id');
         const pwd = authState.passwords.find(p => p.id === id);
         if (pwd) {
-          fillCredentials(pwd.username, pwd.password);
+          if (inputType === 'username') {
+            // Sadece username doldur, şifreyi hatırla
+            fillUsernameOnly(pwd.username);
+            lastFilledUsername = pwd.username;
+            lastFilledEntry = pwd;
+            console.log('🔐 Username dolduruldu, entry hatırlandı:', pwd.name);
+          } else if (inputType === 'password' && findUsernameFields().length === 0) {
+            // Sadece password alanı var (multi-step 2. adım)
+            fillPasswordOnly(pwd.password);
+            lastFilledUsername = null;
+            lastFilledEntry = null;
+          } else {
+            // Normal: hem username hem password doldur
+            fillCredentials(pwd.username, pwd.password);
+            lastFilledUsername = null;
+            lastFilledEntry = null;
+          }
           closeDropdown();
         }
       });
@@ -516,7 +693,11 @@ function closeDropdown() {
 // Close on outside click
 document.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
-  if (!target.closest('.pm-dropdown') && !target.closest('input[type="password"]')) {
+  // Dropdown, password veya username input'larına tıklanmadıysa kapat
+  const isInputField = target.closest('input[type="password"]') || 
+                       target.closest('input[type="text"]') || 
+                       target.closest('input[type="email"]');
+  if (!target.closest('.pm-dropdown') && !isInputField) {
     closeDropdown();
   }
 });
@@ -553,6 +734,43 @@ function setInputValue(input: HTMLInputElement, value: string): boolean {
     console.error('Input value set error:', error);
     return false;
   }
+}
+
+// Multi-step login: Sadece username doldur
+function fillUsernameOnly(username: string) {
+  console.log('🔐 fillUsernameOnly çağrıldı:', username);
+  
+  const usernameFields = findUsernameFields();
+  
+  if (usernameFields.length > 0) {
+    const targetField = usernameFields[0];
+    console.log('🔐 Username dolduruluyor (only):', targetField.name || targetField.id);
+    if (setInputValue(targetField, username)) {
+      showToast('Kullanıcı adı dolduruldu', 'success');
+      return true;
+    }
+  }
+  
+  showToast('Kullanıcı adı alanı bulunamadı', 'error');
+  return false;
+}
+
+// Multi-step login: Sadece password doldur
+function fillPasswordOnly(password: string) {
+  console.log('🔐 fillPasswordOnly çağrıldı');
+  
+  const passwordFields = findPasswordFields();
+  
+  if (passwordFields.length > 0) {
+    console.log('🔐 Password dolduruluyor (only)');
+    if (setInputValue(passwordFields[0], password)) {
+      showToast('Şifre dolduruldu', 'success');
+      return true;
+    }
+  }
+  
+  showToast('Şifre alanı bulunamadı', 'error');
+  return false;
 }
 
 function fillCredentials(username: string, password: string) {
@@ -638,12 +856,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ success: true });
   }
   
+  // Multi-step login: Sadece username doldur
+  if (message.type === 'AUTOFILL_USERNAME') {
+    fillUsernameOnly(message.username);
+    lastFilledUsername = message.username;
+    if (message.entry) {
+      lastFilledEntry = message.entry;
+    }
+    sendResponse({ success: true });
+  }
+  
+  // Multi-step login: Sadece password doldur
+  if (message.type === 'AUTOFILL_PASSWORD_ONLY') {
+    fillPasswordOnly(message.password);
+    lastFilledEntry = null;
+    lastFilledUsername = null;
+    sendResponse({ success: true });
+  }
+  
   if (message.type === 'GET_PAGE_INFO') {
     sendResponse({
       url: window.location.href,
       hostname: currentHostname,
       title: document.title,
-      hasLoginForm: findPasswordFields().length > 0
+      hasLoginForm: isLoginForm(),
+      isMultiStepLogin: hasStandaloneUsernameField() && findPasswordFields().length === 0,
+      hasPasswordField: findPasswordFields().length > 0,
+      hasUsernameField: findUsernameFields().length > 0
     });
   }
   
@@ -662,9 +901,14 @@ function initialize() {
     setTimeout(attachInputListeners, 300);
   }
   
-  // Watch for dynamic content
+  // Watch for dynamic content - multi-step login için önemli
   const observer = new MutationObserver(() => {
     attachInputListeners();
+    
+    // Password alanı yeni eklenmiş olabilir (multi-step 2. adım)
+    if (lastFilledEntry && findPasswordFields().length > 0 && lastFilledUsername) {
+      console.log('🔐 Multi-step: Password alanı tespit edildi, önceki entry mevcut:', lastFilledUsername);
+    }
   });
   
   observer.observe(document.body, {
@@ -672,12 +916,16 @@ function initialize() {
     subtree: true
   });
   
-  // Notify background about login form
+  // Notify background about login form (password veya standalone username)
   setTimeout(() => {
-    if (findPasswordFields().length > 0) {
+    const hasPasswordField = findPasswordFields().length > 0;
+    const hasStandaloneUsername = hasStandaloneUsernameField();
+    
+    if (hasPasswordField || hasStandaloneUsername) {
       chrome.runtime.sendMessage({
         type: 'LOGIN_FORM_DETECTED',
-        hostname: currentHostname
+        hostname: currentHostname,
+        isMultiStep: hasStandaloneUsername && !hasPasswordField
       }).catch(() => {});
     }
   }, 500);

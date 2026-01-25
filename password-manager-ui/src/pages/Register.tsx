@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { register } from '../helpers/api';
 import { generateSalt, deriveMasterKeyWithKdf, createAuthHash, deriveEncryptionKey, stringToBase64 } from '../helpers/encryption';
 import type { UserForRegisterDto } from '../types';
+import { ApiError } from '../types';
 import '../styles/auth.css';
 
 interface RegisterProps {
@@ -123,20 +124,17 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
         // Normal web app'ta - dashboard'a yönlendir (zaten giriş yapıldı)
         navigate('/dashboard');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Register hatası:', err);
-      console.error('Error type:', typeof err);
-      console.error('Error message:', err?.message);
-      console.error('Error response:', err?.response?.data);
-      console.error('Error stack:', err?.stack);
       
-      let errorMessage = 'Kayıt başarısız. Lütfen tekrar deneyiniz.';
-      if (err?.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err?.message) {
-        errorMessage = err.message;
+      // ApiError ise kullanıcı dostu mesajı göster
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Kayıt başarısız. Lütfen tekrar deneyiniz.');
       }
-      setError(errorMessage);
     } finally {
       setLoading(false);
     }

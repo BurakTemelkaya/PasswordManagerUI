@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { login, getUserKdfParams } from '../helpers/api';
 import { deriveMasterKeyWithKdf, createAuthHash, deriveEncryptionKey, stringToBase64 } from '../helpers/encryption';
+import { config } from '../helpers/config';
 import type { UserForLoginDto } from '../types';
+import { ApiError } from '../types';
 import '../styles/auth.css';
 
 interface LocationState {
@@ -182,7 +184,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
           await chrome.storage.local.set({
             userName: formData.userName,
             userId: userId,
-            apiUrl: 'https://localhost:7051/api'
+            apiUrl: config.api.baseURL
           });
           
           console.log('✅ Chrome storage kaydedildi (session + local)');
@@ -204,14 +206,18 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
         // Normal web app'ta - router'a yönlendir
         navigate('/');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       localStorage.clear();
       console.error('❌ Login error:', err);
-      console.error('📋 Error response:', err.response?.data);
-      console.error('💬 Error message:', err.message);
-      const errorMessage = err.response?.data?.message || 'Giriş başarısız. Kullanıcı adı ve Master Parolayı kontrol edin.';
-      setError(errorMessage);
-      console.error(err);
+      
+      // ApiError ise kullanıcı dostu mesajı göster
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Giriş başarısız. Kullanıcı adı ve Master Parolayı kontrol edin.');
+      }
     } finally {
       setLoading(false);
     }
@@ -277,6 +283,16 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             <Link to="/register">Kayıt ol</Link>
           )}
         </div>
+        
+        {/* Extension Download Link - sadece web'de göster */}
+        {!onLoginSuccess && (
+          <div className="auth-footer" style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+            <span style={{ marginRight: '8px' }}>🔐</span>
+            <Link to="/download" style={{ color: '#60a5fa' }}>
+              Tarayıcı eklentisini indir
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

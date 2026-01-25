@@ -1,2 +1,256 @@
-import{u as C,r,g as I,d as L,j as e,f as D,l as z,a as T,A as K,b as R,c as B,B as $,R as G,e as j,L as W,h as _,S as M,N as F,i as Y}from"./chunks/Settings-BtfosI3V.js";const O=({onLogout:t,onAddPassword:l,onViewPassword:c,onEditPassword:v,onSettings:o})=>{const u=C(),[h,y]=r.useState([]),[k,m]=r.useState(!0),[w,b]=r.useState(null),[p,P]=r.useState(""),[n,a]=r.useState(new Map);r.useEffect(()=>{d()},[]);const d=async()=>{try{m(!0),b(null);const s=localStorage.getItem("encryptionKey");if(console.log("🔑 Encryption Key var mı?",!!s),!s){b("Encryption key bulunamadı. Lütfen yeniden giriş yapın."),m(!1);return}console.log("📥 Parolalar yükleniyor...");const i=await I();console.log("✅ API döndü, parola sayısı:",i.length),y(i);const x=new Map;console.log("🔓 Decrypt işlemleri başlıyor..."),await Promise.all(i.map(async g=>{try{const N=await L({encryptedName:g.encryptedName,encryptedUserName:g.encryptedUserName,encryptedPassword:g.encryptedPassword,encryptedDescription:g.encryptedDescription,encryptedWebSiteUrl:g.encryptedWebSiteUrl},s,g.iv);x.set(g.id,{name:N.name,websiteUrl:N.websiteUrl,username:N.username}),console.log(`✅ ${N.name} decrypted başarılı`)}catch(N){console.error(`❌ Decrypt hatası (${g.id}):`,N.message||N)}})),console.log("✅ Tüm decrypt işlemleri tamamlandı, toplam:",x.size),a(x),b(null)}catch(s){b("Parolalar yüklenemedi"),console.error(s)}finally{m(!1)}},S=r.useMemo(()=>{if(!p.trim())return h;const s=p.toLowerCase();return h.filter(i=>{const x=n.get(i.id);return x?x.name.toLowerCase().includes(s)||x.username.toLowerCase().includes(s)||x.websiteUrl.toLowerCase().includes(s):!1})},[h,p,n]),U=()=>{z(),t?(console.log("📱 Extension popup modunda - onLogout callback çağrılıyor"),t()):u("/login")},A=async s=>{if(window.confirm("Bu parolayı silmek istediğinize emin misiniz?"))try{await T({id:s}),y(h.filter(i=>i.id!==s))}catch(i){b("Silme işlemi başarısız"),console.error(i)}};return k&&h.length===0?e.jsx("div",{className:"loading",children:"Yükleniyor..."}):e.jsxs("div",{className:"container",children:[e.jsxs("header",{className:"header",children:[e.jsx("h1",{children:"Parolalarım"}),e.jsxs("div",{className:"header-actions",children:[e.jsx("button",{onClick:()=>{o?o():u("/settings")},className:"btn btn-secondary",style:{marginRight:"8px"},title:"Ayarlar",children:"⚙️"}),e.jsx("span",{className:"user-name",children:"👤 Kullanıcı"}),e.jsx("button",{onClick:U,className:"btn btn-logout",children:"Çıkış Yap"})]})]}),e.jsxs("main",{className:"main",children:[e.jsx("div",{className:"actions",children:e.jsx("button",{onClick:()=>{l?l():u("/passwords/add")},className:"btn btn-primary",children:"+ Yeni Parola"})}),e.jsx("div",{className:"search-box",style:{marginBottom:"16px"},children:e.jsx("input",{type:"text",placeholder:"Parola ara... (ad, kullanıcı adı, website)",value:p,onChange:s=>P(s.target.value),style:{width:"100%",padding:"12px 16px",borderRadius:"8px",border:"1px solid var(--border-color)",background:"var(--bg-input)",color:"var(--text-primary)",fontSize:"14px"}})}),w&&e.jsx("div",{className:"alert alert-error",children:w}),S.length===0?e.jsx("div",{className:"empty-state",children:p?e.jsxs("p",{children:['"',p,'" için sonuç bulunamadı']}):e.jsxs(e.Fragment,{children:[e.jsx("p",{children:"Henüz parola eklememişsiniz"}),e.jsx("button",{onClick:()=>{l?l():u("/passwords/add")},className:"btn btn-primary",children:"İlk parolayı ekleyin"})]})}):e.jsx("div",{className:"password-grid",children:S.map(s=>{const i=n.get(s.id);return e.jsxs("div",{className:"password-card",children:[e.jsx("h3",{children:i?.name||"Parola"}),e.jsx("p",{className:"website",children:i?.websiteUrl||"-"}),e.jsxs("p",{className:"username",children:["Kullanıcı: ",i?.username||"-"]}),e.jsxs("p",{className:"password-date",children:["Oluşturulma: ",D(s.createdDate)]}),e.jsxs("div",{className:"actions",children:[e.jsx("button",{onClick:()=>{c?c(s.id):u(`/passwords/${s.id}`)},className:"btn btn-small btn-info",children:"Görüntüle"}),e.jsx("button",{onClick:()=>{v?v(s.id):u(`/passwords/${s.id}/edit`)},className:"btn btn-small btn-warning",children:"Düzenle"}),e.jsx("button",{onClick:()=>A(s.id),className:"btn btn-small btn-danger",children:"Sil"})]})]},s.id)})}),e.jsxs("div",{style:{textAlign:"center",marginTop:"16px",color:"var(--text-muted)",fontSize:"13px"},children:["Toplam: ",h.length," parola ",p&&`(${S.length} sonuç)`]})]})]})},H=()=>e.jsx(K,{}),Q=()=>{const{id:t}=R(),l=C(),[c,v]=r.useState(null),[o,u]=r.useState(null),[h,y]=r.useState(!0),[k,m]=r.useState(null),[w,b]=r.useState(!1);r.useEffect(()=>{t&&p()},[t]);const p=async()=>{try{y(!0),m(null);const n=localStorage.getItem("encryptionKey");if(console.log("🔑 Encryption Key var mı?",!!n),!n){m("Encryption key bulunamadı. Lütfen yeniden giriş yapın."),y(!1);return}console.log("📥 Parola yükleniyor, ID:",t);const a=await B(t);if(console.log("✅ API döndü (RAW):",{id:a.id,encryptedNameLength:a.encryptedName?.length,encryptedPasswordLength:a.encryptedPassword?.length,iv:a.iv,ivLength:a.iv?.length,ivType:typeof a.iv}),v(a),!a.iv){console.warn("⚠️ IV BULUNAMADI - Eski şifreleme mi? Backward compat gerekli olabilir"),m("Bu parola yeni format ile kaydedilmemiş. Admin ile iletişim kurun."),y(!1);return}console.log("🔓 Decrypt işlemi başlıyor..."),console.log("📋 Decrypt parametreleri:",{encryptedNameLength:a.encryptedName.length,encryptionKeyLength:n.length,ivLength:a.iv.length});try{const d=await L({encryptedName:a.encryptedName,encryptedUserName:a.encryptedUserName,encryptedPassword:a.encryptedPassword,encryptedDescription:a.encryptedDescription,encryptedWebSiteUrl:a.encryptedWebSiteUrl},n,a.iv);console.log("✅ Decrypt başarılı:",d),u(d)}catch(d){console.error("❌ Decrypt hatası:",d),console.error("Hata detayı:",{message:d.message,name:d.name,stack:d.stack?.split(`
-`).slice(0,3)}),m(`Şifre çözme başarısız: ${d.message}`),y(!1);return}}catch(n){console.error("❌ Parola yükleme hatası:",n),m(`Parola yüklenemedi: ${n.message||n}`)}finally{y(!1)}},P=n=>{navigator.clipboard.writeText(n),alert("Kopyalandı!")};return h?e.jsx("div",{className:"loading",children:"Yükleniyor..."}):k||!c?e.jsxs("div",{className:"container",children:[e.jsx("div",{className:"alert alert-error",children:k||"Parola bulunamadı"}),e.jsx("button",{onClick:()=>l("/"),className:"btn btn-primary",children:"Geri Dön"})]}):e.jsxs("div",{className:"container",children:[e.jsxs("header",{className:"header",children:[e.jsx("button",{onClick:()=>l("/"),className:"btn btn-back",children:"← Geri"}),e.jsx("h1",{children:o?.name||"Parola"})]}),e.jsxs("main",{className:"main",children:[e.jsxs("div",{className:"password-details",children:[e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Website"}),e.jsx("p",{children:o?.websiteUrl||"-"})]}),e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Kullanıcı Adı"}),e.jsxs("div",{className:"detail-with-action",children:[e.jsx("p",{children:o?.username||"-"}),e.jsx("button",{onClick:()=>P(o?.username||""),className:"btn btn-small",children:"Kopyala"})]})]}),e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Parola"}),e.jsxs("div",{className:"detail-with-action",children:[e.jsx("p",{children:w?o?.password:"••••••••"}),e.jsx("button",{onClick:()=>b(!w),className:"btn btn-small",children:w?"Gizle":"Göster"}),e.jsx("button",{onClick:()=>P(o?.password||""),className:"btn btn-small",children:"Kopyala"})]})]}),o?.description&&e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Açıklama"}),e.jsx("p",{children:o.description})]}),e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Oluşturulma Tarihi"}),e.jsx("p",{children:D(c.createdDate)})]}),c.updatedDate&&e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Son Güncellenme Tarihi"}),e.jsx("p",{children:D(c.updatedDate)})]})]}),e.jsxs("div",{className:"actions",children:[e.jsx("button",{onClick:()=>l(`/passwords/${t}/edit`),className:"btn btn-warning",children:"Düzenle"}),e.jsx("button",{onClick:()=>l("/"),className:"btn btn-secondary",children:"Kapat"})]})]})]})},q=()=>{const t=C();return e.jsx("div",{className:"container",children:e.jsxs("div",{className:"not-found",children:[e.jsx("h1",{children:"404"}),e.jsx("p",{children:"Sayfa bulunamadı"}),e.jsx("button",{onClick:()=>t("/"),className:"btn btn-primary",children:"Ana Sayfaya Dön"})]})})},f=({children:t})=>localStorage.getItem("authToken")?e.jsx(e.Fragment,{children:t}):e.jsx(F,{to:"/login",replace:!0}),V=()=>e.jsx($,{children:e.jsxs(G,{children:[e.jsx(j,{path:"/login",element:e.jsx(W,{})}),e.jsx(j,{path:"/register",element:e.jsx(_,{})}),e.jsx(j,{path:"/",element:e.jsx(f,{children:e.jsx(O,{})})}),e.jsx(j,{path:"/passwords/add",element:e.jsx(f,{children:e.jsx(K,{})})}),e.jsx(j,{path:"/passwords/:id",element:e.jsx(f,{children:e.jsx(Q,{})})}),e.jsx(j,{path:"/passwords/:id/edit",element:e.jsx(f,{children:e.jsx(H,{})})}),e.jsx(j,{path:"/settings",element:e.jsx(f,{children:e.jsx(M,{})})}),e.jsx(j,{path:"*",element:e.jsx(q,{})})]})}),E=()=>{const t=localStorage.getItem("encryptionKey"),l=localStorage.getItem("authToken"),c=localStorage.getItem("userName");return{encryptionKey:{exists:!!t,length:t?.length,preview:t?.substring(0,32)+"..."},authToken:{exists:!!l,preview:l?.substring(0,32)+"..."},userName:{exists:!!c,value:c},allKeys:Object.keys(localStorage)}};typeof window<"u"&&(window.__debugCrypto=E);typeof window<"u"&&(window.__debugCrypto=E,console.log("💡 Debug mode: console'da __debugCrypto() çağırarak state kontrol edebilirsin"));function J(){return e.jsx("div",{className:"app",children:e.jsx(V,{})})}Y.createRoot(document.getElementById("root")).render(e.jsx(r.StrictMode,{children:e.jsx(J,{})}));
+import{u as z,r as l,g as U,d as E,A as S,j as e,f as D,l as T,a as B,b as K,c as G,e as R,B as M,R as Y,h,L as $,i as W,S as _,N as F,k as O}from"./chunks/Settings-B9Kd9z8s.js";import"./chunks/config-DmK0IJcx.js";const Z=({onLogout:n,onAddPassword:t,onViewPassword:s,onEditPassword:N,onSettings:d})=>{const u=z(),[g,b]=l.useState([]),[v,m]=l.useState(!0),[w,p]=l.useState(null),[x,P]=l.useState(""),[i,r]=l.useState(new Map);l.useEffect(()=>{c()},[]);const c=async()=>{try{m(!0),p(null);const a=localStorage.getItem("encryptionKey");if(console.log("🔑 Encryption Key var mı?",!!a),!a){p("Encryption key bulunamadı. Lütfen yeniden giriş yapın."),m(!1);return}console.log("📥 Parolalar yükleniyor...");const o=await U();console.log("✅ API döndü, parola sayısı:",o.length),b(o);const y=new Map;console.log("🔓 Decrypt işlemleri başlıyor..."),await Promise.all(o.map(async j=>{try{const f=await E({encryptedName:j.encryptedName,encryptedUserName:j.encryptedUserName,encryptedPassword:j.encryptedPassword,encryptedDescription:j.encryptedDescription,encryptedWebSiteUrl:j.encryptedWebSiteUrl},a,j.iv);y.set(j.id,{name:f.name,websiteUrl:f.websiteUrl,username:f.username}),console.log(`✅ ${f.name} decrypted başarılı`)}catch(f){console.error(`❌ Decrypt hatası (${j.id}):`,f.message||f)}})),console.log("✅ Tüm decrypt işlemleri tamamlandı, toplam:",y.size),r(y),p(null)}catch(a){a instanceof S?p(a.getUserMessage()):p("Parolalar yüklenemedi"),console.error(a)}finally{m(!1)}},C=l.useMemo(()=>{if(!x.trim())return g;const a=x.toLowerCase();return g.filter(o=>{const y=i.get(o.id);return y?y.name.toLowerCase().includes(a)||y.username.toLowerCase().includes(a)||y.websiteUrl.toLowerCase().includes(a):!1})},[g,x,i]),A=()=>{T(),n?(console.log("📱 Extension popup modunda - onLogout callback çağrılıyor"),n()):u("/login")},I=async a=>{if(window.confirm("Bu parolayı silmek istediğinize emin misiniz?"))try{await B({id:a}),b(g.filter(o=>o.id!==a))}catch(o){o instanceof S?p(o.getUserMessage()):p("Silme işlemi başarısız"),console.error(o)}};return v&&g.length===0?e.jsx("div",{className:"loading",children:"Yükleniyor..."}):e.jsxs("div",{className:"container",children:[e.jsxs("header",{className:"header",children:[e.jsx("h1",{children:"Parolalarım"}),e.jsxs("div",{className:"header-actions",children:[e.jsx("button",{onClick:()=>{d?d():u("/settings")},className:"btn btn-secondary",style:{marginRight:"8px"},title:"Ayarlar",children:"⚙️"}),e.jsx("span",{className:"user-name",children:"👤 Kullanıcı"}),e.jsx("button",{onClick:A,className:"btn btn-logout",children:"Çıkış Yap"})]})]}),e.jsxs("main",{className:"main",children:[e.jsx("div",{className:"actions",children:e.jsx("button",{onClick:()=>{t?t():u("/passwords/add")},className:"btn btn-primary",children:"+ Yeni Parola"})}),e.jsx("div",{className:"search-box",style:{marginBottom:"16px"},children:e.jsx("input",{type:"text",placeholder:"Parola ara... (ad, kullanıcı adı, website)",value:x,onChange:a=>P(a.target.value),style:{width:"100%",padding:"12px 16px",borderRadius:"8px",border:"1px solid var(--border-color)",background:"var(--bg-input)",color:"var(--text-primary)",fontSize:"14px"}})}),w&&e.jsx("div",{className:"alert alert-error",children:w}),C.length===0?e.jsx("div",{className:"empty-state",children:x?e.jsxs("p",{children:['"',x,'" için sonuç bulunamadı']}):e.jsxs(e.Fragment,{children:[e.jsx("p",{children:"Henüz parola eklememişsiniz"}),e.jsx("button",{onClick:()=>{t?t():u("/passwords/add")},className:"btn btn-primary",children:"İlk parolayı ekleyin"})]})}):e.jsx("div",{className:"password-grid",children:C.map(a=>{const o=i.get(a.id);return e.jsxs("div",{className:"password-card",children:[e.jsx("h3",{children:o?.name||"Parola"}),e.jsx("p",{className:"website",children:o?.websiteUrl||"-"}),e.jsxs("p",{className:"username",children:["Kullanıcı: ",o?.username||"-"]}),e.jsxs("p",{className:"password-date",children:["Oluşturulma: ",D(a.createdDate)]}),e.jsxs("div",{className:"actions",children:[e.jsx("button",{onClick:()=>{s?s(a.id):u(`/passwords/${a.id}`)},className:"btn btn-small btn-info",children:"Görüntüle"}),e.jsx("button",{onClick:()=>{N?N(a.id):u(`/passwords/${a.id}/edit`)},className:"btn btn-small btn-warning",children:"Düzenle"}),e.jsx("button",{onClick:()=>I(a.id),className:"btn btn-small btn-danger",children:"Sil"})]})]},a.id)})}),e.jsxs("div",{style:{textAlign:"center",marginTop:"16px",color:"var(--text-muted)",fontSize:"13px"},children:["Toplam: ",g.length," parola ",x&&`(${C.length} sonuç)`]})]})]})},H=()=>e.jsx(K,{}),Q=()=>{const{id:n}=G(),t=z(),[s,N]=l.useState(null),[d,u]=l.useState(null),[g,b]=l.useState(!0),[v,m]=l.useState(null),[w,p]=l.useState(!1);l.useEffect(()=>{n&&x()},[n]);const x=async()=>{try{b(!0),m(null);const i=localStorage.getItem("encryptionKey");if(console.log("🔑 Encryption Key var mı?",!!i),!i){m("Encryption key bulunamadı. Lütfen yeniden giriş yapın."),b(!1);return}console.log("📥 Parola yükleniyor, ID:",n);const r=await R(n);if(console.log("✅ API döndü (RAW):",{id:r.id,encryptedNameLength:r.encryptedName?.length,encryptedPasswordLength:r.encryptedPassword?.length,iv:r.iv,ivLength:r.iv?.length,ivType:typeof r.iv}),N(r),!r.iv){console.warn("⚠️ IV BULUNAMADI - Eski şifreleme mi? Backward compat gerekli olabilir"),m("Bu parola yeni format ile kaydedilmemiş. Admin ile iletişim kurun."),b(!1);return}console.log("🔓 Decrypt işlemi başlıyor..."),console.log("📋 Decrypt parametreleri:",{encryptedNameLength:r.encryptedName.length,encryptionKeyLength:i.length,ivLength:r.iv.length});try{const c=await E({encryptedName:r.encryptedName,encryptedUserName:r.encryptedUserName,encryptedPassword:r.encryptedPassword,encryptedDescription:r.encryptedDescription,encryptedWebSiteUrl:r.encryptedWebSiteUrl},i,r.iv);console.log("✅ Decrypt başarılı:",c),u(c)}catch(c){console.error("❌ Decrypt hatası:",c),console.error("Hata detayı:",{message:c.message,name:c.name,stack:c.stack?.split(`
+`).slice(0,3)}),m(`Şifre çözme başarısız: ${c.message}`),b(!1);return}}catch(i){console.error("❌ Parola yükleme hatası:",i),m(`Parola yüklenemedi: ${i.message||i}`)}finally{b(!1)}},P=i=>{navigator.clipboard.writeText(i),alert("Kopyalandı!")};return g?e.jsx("div",{className:"loading",children:"Yükleniyor..."}):v||!s?e.jsxs("div",{className:"container",children:[e.jsx("div",{className:"alert alert-error",children:v||"Parola bulunamadı"}),e.jsx("button",{onClick:()=>t("/"),className:"btn btn-primary",children:"Geri Dön"})]}):e.jsxs("div",{className:"container",children:[e.jsxs("header",{className:"header",children:[e.jsx("button",{onClick:()=>t("/"),className:"btn btn-back",children:"← Geri"}),e.jsx("h1",{children:d?.name||"Parola"})]}),e.jsxs("main",{className:"main",children:[e.jsxs("div",{className:"password-details",children:[e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Website"}),e.jsx("p",{children:d?.websiteUrl||"-"})]}),e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Kullanıcı Adı"}),e.jsxs("div",{className:"detail-with-action",children:[e.jsx("p",{children:d?.username||"-"}),e.jsx("button",{onClick:()=>P(d?.username||""),className:"btn btn-small",children:"Kopyala"})]})]}),e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Parola"}),e.jsxs("div",{className:"detail-with-action",children:[e.jsx("p",{children:w?d?.password:"••••••••"}),e.jsx("button",{onClick:()=>p(!w),className:"btn btn-small",children:w?"Gizle":"Göster"}),e.jsx("button",{onClick:()=>P(d?.password||""),className:"btn btn-small",children:"Kopyala"})]})]}),d?.description&&e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Açıklama"}),e.jsx("p",{children:d.description})]}),e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Oluşturulma Tarihi"}),e.jsx("p",{children:D(s.createdDate)})]}),s.updatedDate&&e.jsxs("div",{className:"detail-group",children:[e.jsx("label",{children:"Son Güncellenme Tarihi"}),e.jsx("p",{children:D(s.updatedDate)})]})]}),e.jsxs("div",{className:"actions",children:[e.jsx("button",{onClick:()=>t(`/passwords/${n}/edit`),className:"btn btn-warning",children:"Düzenle"}),e.jsx("button",{onClick:()=>t("/"),className:"btn btn-secondary",children:"Kapat"})]})]})]})},q=()=>{const n=z();return e.jsx("div",{className:"container",children:e.jsxs("div",{className:"not-found",children:[e.jsx("h1",{children:"404"}),e.jsx("p",{children:"Sayfa bulunamadı"}),e.jsx("button",{onClick:()=>n("/"),className:"btn btn-primary",children:"Ana Sayfaya Dön"})]})})},V=()=>{const n=z(),t=()=>{const s=document.createElement("a");s.href="/password-manager-extension.zip",s.download="password-manager-extension.zip",document.body.appendChild(s),s.click(),document.body.removeChild(s)};return e.jsxs("div",{className:"download-page",children:[e.jsxs("div",{className:"download-container",children:[e.jsxs("header",{className:"download-header",children:[e.jsx("div",{className:"download-logo",children:"🔐"}),e.jsx("h1",{children:"Parola Yöneticisi"}),e.jsx("p",{className:"download-subtitle",children:"Zero-Knowledge güvenlikli tarayıcı eklentisi"})]}),e.jsxs("section",{className:"download-features",children:[e.jsxs("div",{className:"feature-card",children:[e.jsx("span",{className:"feature-icon",children:"🔒"}),e.jsx("h3",{children:"Zero-Knowledge"}),e.jsx("p",{children:"Parolalarınız cihazınızda şifrelenir, sunucuda asla açık metin olarak tutulmaz."})]}),e.jsxs("div",{className:"feature-card",children:[e.jsx("span",{className:"feature-icon",children:"⚡"}),e.jsx("h3",{children:"Otomatik Doldurma"}),e.jsx("p",{children:"Web sitelerine tek tıkla giriş yapın, form alanlarını otomatik doldurun."})]}),e.jsxs("div",{className:"feature-card",children:[e.jsx("span",{className:"feature-icon",children:"🔄"}),e.jsx("h3",{children:"Import/Export"}),e.jsx("p",{children:"Chrome, Firefox, Bitwarden, LastPass'tan parolalarınızı kolayca aktarın."})]}),e.jsxs("div",{className:"feature-card",children:[e.jsx("span",{className:"feature-icon",children:"🛡️"}),e.jsx("h3",{children:"Güçlü Şifreleme"}),e.jsx("p",{children:"AES-256-GCM şifreleme ve PBKDF2 (600.000 iterasyon) ile korunun."})]})]}),e.jsxs("section",{className:"download-section",children:[e.jsx("h2",{children:"Tarayıcı Eklentisini İndirin"}),e.jsx("div",{className:"download-options",children:e.jsxs("div",{className:"download-card",children:[e.jsxs("div",{className:"browser-icons",children:[e.jsx("span",{className:"browser-icon",title:"Chrome",children:"🌐"}),e.jsx("span",{className:"browser-icon",title:"Edge",children:"💠"}),e.jsx("span",{className:"browser-icon",title:"Brave",children:"🦁"})]}),e.jsx("h3",{children:"Chrome / Edge / Brave"}),e.jsx("p",{children:"Chromium tabanlı tarayıcılar için"}),e.jsx("button",{onClick:t,className:"download-btn",children:"📦 Eklentiyi İndir (.zip)"})]})}),e.jsxs("div",{className:"install-guide",children:[e.jsx("h3",{children:"📋 Kurulum Adımları"}),e.jsxs("ol",{children:[e.jsxs("li",{children:[e.jsx("strong",{children:"İndirin:"})," Yukarıdaki butona tıklayarak ZIP dosyasını indirin."]}),e.jsxs("li",{children:[e.jsx("strong",{children:"Çıkartın:"})," ZIP dosyasını bir klasöre çıkartın."]}),e.jsxs("li",{children:[e.jsx("strong",{children:"Eklentiler sayfasını açın:"}),e.jsx("code",{children:"chrome://extensions"})," adresine gidin."]}),e.jsxs("li",{children:[e.jsx("strong",{children:"Geliştirici modu:"}),' Sağ üst köşedeki "Geliştirici modu"nu açın.']}),e.jsxs("li",{children:[e.jsx("strong",{children:"Yükleyin:"}),' "Paketlenmemiş öğe yükle" butonuna tıklayın ve çıkarttığınız klasörü seçin.']}),e.jsxs("li",{children:[e.jsx("strong",{children:"Hazır!"})," Eklenti simgesi tarayıcı araç çubuğunda görünecektir."]})]})]})]}),e.jsxs("section",{className:"download-actions",children:[e.jsx("p",{children:"Zaten hesabınız var mı?"}),e.jsx("button",{onClick:()=>n("/login"),className:"btn-secondary",children:"Giriş Yap"}),e.jsx("button",{onClick:()=>n("/register"),className:"btn-primary",children:"Kayıt Ol"})]}),e.jsx("footer",{className:"download-footer",children:e.jsxs("p",{children:["🔐 Açık kaynak parola yöneticisi |",e.jsx("a",{href:"https://github.com/BurakTemelkaya/PasswordManagerUI",target:"_blank",rel:"noopener noreferrer",children:"GitHub"})]})})]}),e.jsx("style",{children:`
+        .download-page {
+          min-height: 100vh;
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+          padding: 40px 20px;
+        }
+
+        .download-container {
+          max-width: 900px;
+          margin: 0 auto;
+        }
+
+        .download-header {
+          text-align: center;
+          margin-bottom: 48px;
+        }
+
+        .download-logo {
+          font-size: 64px;
+          margin-bottom: 16px;
+        }
+
+        .download-header h1 {
+          font-size: 36px;
+          color: #fff;
+          margin-bottom: 8px;
+        }
+
+        .download-subtitle {
+          font-size: 18px;
+          color: #94a3b8;
+        }
+
+        .download-features {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          margin-bottom: 48px;
+        }
+
+        .feature-card {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 16px;
+          padding: 24px;
+          text-align: center;
+          transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .feature-card:hover {
+          transform: translateY(-4px);
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .feature-icon {
+          font-size: 40px;
+          display: block;
+          margin-bottom: 12px;
+        }
+
+        .feature-card h3 {
+          color: #fff;
+          font-size: 16px;
+          margin-bottom: 8px;
+        }
+
+        .feature-card p {
+          color: #94a3b8;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .download-section {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 20px;
+          padding: 32px;
+          margin-bottom: 32px;
+        }
+
+        .download-section h2 {
+          color: #fff;
+          text-align: center;
+          margin-bottom: 24px;
+          font-size: 24px;
+        }
+
+        .download-options {
+          display: flex;
+          justify-content: center;
+          gap: 24px;
+          margin-bottom: 32px;
+        }
+
+        .download-card {
+          background: rgba(59, 130, 246, 0.1);
+          border: 2px solid rgba(59, 130, 246, 0.3);
+          border-radius: 16px;
+          padding: 32px;
+          text-align: center;
+          min-width: 280px;
+        }
+
+        .browser-icons {
+          display: flex;
+          justify-content: center;
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+
+        .browser-icon {
+          font-size: 32px;
+        }
+
+        .download-card h3 {
+          color: #fff;
+          font-size: 18px;
+          margin-bottom: 8px;
+        }
+
+        .download-card p {
+          color: #94a3b8;
+          font-size: 14px;
+          margin-bottom: 20px;
+        }
+
+        .download-btn {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: #fff;
+          border: none;
+          border-radius: 12px;
+          padding: 14px 28px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .download-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+        }
+
+        .install-guide {
+          background: rgba(0, 0, 0, 0.2);
+          border-radius: 12px;
+          padding: 24px;
+        }
+
+        .install-guide h3 {
+          color: #fff;
+          margin-bottom: 16px;
+          font-size: 18px;
+        }
+
+        .install-guide ol {
+          color: #cbd5e1;
+          padding-left: 24px;
+          margin: 0;
+        }
+
+        .install-guide li {
+          margin-bottom: 12px;
+          line-height: 1.6;
+        }
+
+        .install-guide strong {
+          color: #fff;
+        }
+
+        .install-guide code {
+          background: rgba(59, 130, 246, 0.2);
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-family: monospace;
+          color: #60a5fa;
+        }
+
+        .download-actions {
+          text-align: center;
+          margin-bottom: 32px;
+        }
+
+        .download-actions p {
+          color: #94a3b8;
+          margin-bottom: 16px;
+        }
+
+        .download-actions button {
+          margin: 0 8px;
+          padding: 12px 24px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .btn-secondary {
+          background: transparent;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: #fff;
+        }
+
+        .btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-primary {
+          background: #3b82f6;
+          border: none;
+          color: #fff;
+        }
+
+        .btn-primary:hover {
+          background: #2563eb;
+        }
+
+        .download-footer {
+          text-align: center;
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .download-footer a {
+          color: #60a5fa;
+          text-decoration: none;
+          margin-left: 8px;
+        }
+
+        .download-footer a:hover {
+          text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+          .download-header h1 {
+            font-size: 28px;
+          }
+
+          .download-features {
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .download-card {
+            min-width: auto;
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .download-features {
+            grid-template-columns: 1fr;
+          }
+        }
+      `})]})},k=({children:n})=>localStorage.getItem("authToken")?e.jsx(e.Fragment,{children:n}):e.jsx(F,{to:"/login",replace:!0}),J=()=>e.jsx(M,{children:e.jsxs(Y,{children:[e.jsx(h,{path:"/login",element:e.jsx($,{})}),e.jsx(h,{path:"/register",element:e.jsx(W,{})}),e.jsx(h,{path:"/download",element:e.jsx(V,{})}),e.jsx(h,{path:"/",element:e.jsx(k,{children:e.jsx(Z,{})})}),e.jsx(h,{path:"/passwords/add",element:e.jsx(k,{children:e.jsx(K,{})})}),e.jsx(h,{path:"/passwords/:id",element:e.jsx(k,{children:e.jsx(Q,{})})}),e.jsx(h,{path:"/passwords/:id/edit",element:e.jsx(k,{children:e.jsx(H,{})})}),e.jsx(h,{path:"/settings",element:e.jsx(k,{children:e.jsx(_,{})})}),e.jsx(h,{path:"*",element:e.jsx(q,{})})]})}),L=()=>{const n=localStorage.getItem("encryptionKey"),t=localStorage.getItem("authToken"),s=localStorage.getItem("userName");return{encryptionKey:{exists:!!n,length:n?.length,preview:n?.substring(0,32)+"..."},authToken:{exists:!!t,preview:t?.substring(0,32)+"..."},userName:{exists:!!s,value:s},allKeys:Object.keys(localStorage)}};typeof window<"u"&&(window.__debugCrypto=L);typeof window<"u"&&(window.__debugCrypto=L,console.log("💡 Debug mode: console'da __debugCrypto() çağırarak state kontrol edebilirsin"));function X(){return e.jsx("div",{className:"app",children:e.jsx(J,{})})}O.createRoot(document.getElementById("root")).render(e.jsx(l.StrictMode,{children:e.jsx(X,{})}));

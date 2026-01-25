@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllPasswords, logout, deletePassword } from '../helpers/api';
 import type { Password } from '../types';
+import { ApiError } from '../types';
 import { decryptDataFromAPI } from '../helpers/encryption';
 import { formatLocalDateTime } from '../helpers/dateFormatter';
 import '../styles/auth.css';
@@ -86,8 +87,12 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
       console.log('✅ Tüm decrypt işlemleri tamamlandı, toplam:', decrypted.size);
       setDecryptedPasswords(decrypted);
       setError(null);
-    } catch (err) {
-      setError('Parolalar yüklenemedi');
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else {
+        setError('Parolalar yüklenemedi');
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -128,8 +133,12 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
       try {
         await deletePassword({ id });
         setPasswords(passwords.filter((p) => p.id !== id));
-      } catch (err) {
-        setError('Silme işlemi başarısız');
+      } catch (err: unknown) {
+        if (err instanceof ApiError) {
+          setError(err.getUserMessage());
+        } else {
+          setError('Silme işlemi başarısız');
+        }
         console.error(err);
       }
     }

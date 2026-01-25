@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { updatePassword, getPasswordById } from '../helpers/api';
 import { encryptDataForAPI, decryptDataFromAPI } from '../helpers/encryption';
 import type { UpdatedPasswordDto } from '../types';
+import { ApiError } from '../types';
 import '../styles/popup.css';
 
 interface EditPasswordPopupProps {
@@ -129,9 +130,14 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
       await updatePassword(updateData);
 
       onSuccess();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'İşlem başarısız. Lütfen tekrar deneyiniz.';
-      setError(errorMessage);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('İşlem başarısız. Lütfen tekrar deneyiniz.');
+      }
       console.error(err);
     } finally {
       setLoading(false);

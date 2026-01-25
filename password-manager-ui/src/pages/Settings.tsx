@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { updateMasterPassword, getAllPasswords, logout } from '../helpers/api';
 import { deriveMasterKeyWithKdf, deriveEncryptionKey } from '../helpers/encryption';
 import { importPasswords, exportPasswords, downloadFile, type ExportFormat, type ImportResult } from '../helpers/importExport';
+import { ApiError } from '../types';
 import '../styles/auth.css';
 
 interface SettingsProps {
@@ -180,9 +181,15 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
         // Yeni encryption key'i state'e set et
         setEncryptionKey(result.newEncryptionKey);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Master Password güncelleme hatası:', err);
-      setError(err.message || 'Master Password güncellenirken bir hata oluştu');
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Master Password güncellenirken bir hata oluştu');
+      }
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,7 @@ import EditPassword from '../pages/EditPassword';
 import ViewPassword from '../pages/ViewPassword';
 import Settings from '../pages/Settings';
 import NotFound from '../pages/NotFound';
+import DownloadExtension from '../pages/DownloadExtension';
 
 // Protected Route komponenti
 interface ProtectedRouteProps {
@@ -33,6 +34,7 @@ export const AppRouter = () => {
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/download" element={<DownloadExtension />} />
 
         {/* Protected Routes */}
         <Route

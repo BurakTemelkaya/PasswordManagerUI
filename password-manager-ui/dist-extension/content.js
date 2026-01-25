@@ -1,4 +1,4 @@
-console.log("🔐 Parola Yöneticisi content script yüklendi");let s={isAuthenticated:!1,passwords:[],loading:!1,error:null},u=null,y=null,v=window.location.hostname;const S=`
+console.log("🔐 Parola Yöneticisi content script yüklendi");let a={isAuthenticated:!1,passwords:[],loading:!1,error:null},y=null,A=null,P=window.location.hostname,w=null,l=null;const $=`
   /* Bitwarden-style Dropdown */
   .pm-dropdown {
     position: fixed;
@@ -60,6 +60,26 @@ console.log("🔐 Parola Yöneticisi content script yüklendi");let s={isAuthent
     background: #363b42;
   }
   
+  /* Multi-step login suggested item */
+  .pm-password-item.pm-suggested {
+    background: rgba(23, 93, 220, 0.1);
+    border-left: 3px solid #175ddc;
+  }
+  
+  .pm-password-item.pm-suggested:hover {
+    background: rgba(23, 93, 220, 0.2);
+  }
+  
+  .pm-suggested-badge {
+    background: #175ddc;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 500;
+  }
+
   .pm-password-favicon {
     width: 32px;
     height: 32px;
@@ -220,14 +240,14 @@ console.log("🔐 Parola Yöneticisi content script yüklendi");let s={isAuthent
   
   .pm-toast.success { border-left: 3px solid #51c28a; }
   .pm-toast.error { border-left: 3px solid #c25151; }
-`;function A(){if(document.getElementById("pm-overlay-styles"))return;const e=document.createElement("style");e.id="pm-overlay-styles",e.textContent=S,document.head.appendChild(e)}function T(){return'<svg viewBox="0 0 24 24"><path d="M12 1C8.676 1 6 3.676 6 7v2H4v14h16V9h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 10c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>'}function I(){return'<svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7zm-2 16H5V7h7V5H3v16h14v-7h-2v5h-3z"/></svg>'}function h(e){if(!e)return!1;const t=window.getComputedStyle(e);if(t.display==="none"||t.visibility==="hidden"||t.opacity==="0")return!1;const o=e.getBoundingClientRect();return o.width>0&&o.height>0}function k(e,t="success"){const o=document.querySelector(".pm-toast");o&&o.remove();const n=document.createElement("div");n.className=`pm-toast ${t}`,n.innerHTML=`<span>${t==="success"?"✓":"✕"}</span><span>${e}</span>`,document.body.appendChild(n),setTimeout(()=>{n.style.animation="pm-toast-appear 0.2s ease-out reverse",setTimeout(()=>n.remove(),200)},2e3)}async function O(){s.loading=!0;try{const e=await chrome.runtime.sendMessage({type:"GET_PASSWORDS_FOR_SITE",hostname:v});e?.success&&e.isAuthenticated!==!1?(s.isAuthenticated=!0,s.passwords=e.passwords||[],s.error=null):(s.isAuthenticated=(e?.isAuthenticated===!1,!1),s.passwords=[],s.error=e?.message||null)}catch{s.isAuthenticated=!1,s.passwords=[],s.error="Bağlantı hatası"}s.loading=!1}function w(){const e=document.querySelectorAll('input[type="password"]');return Array.from(e).filter(t=>h(t))}function P(){const e=['input[autocomplete="username"]','input[autocomplete="email"]','input[type="email"]','input[name*="user" i]','input[name*="email" i]','input[name*="login" i]','input[id*="user" i]','input[id*="email" i]','input[type="text"]'],t=[],o=new Set;for(const n of e)document.querySelectorAll(n).forEach(a=>{!o.has(a)&&h(a)&&(o.add(a),t.push(a))});return t}function x(){A();const e=w();console.log("🔐 Password alanları bulundu:",e.length),e.forEach(t=>{if(t.getAttribute("data-pm-attached"))return;t.setAttribute("data-pm-attached","true"),console.log("🔐 Listener ekleniyor:",t.name||t.id||"unnamed");const o=n=>{n.stopPropagation(),console.log("🔐 Input focus/click"),z(t)};t.addEventListener("focus",o),t.addEventListener("click",o)})}async function z(e){if(console.log("🔐 showDropdown çağrıldı"),u&&y===e)return;m(),y=e;const t=document.createElement("div");t.className="pm-dropdown";const o=e.getBoundingClientRect(),n=window.innerWidth,a=320;let p=o.left;p+a>n-10&&(p=n-a-10),p<10&&(p=10),t.style.top=`${o.bottom+4}px`,t.style.left=`${p}px`,t.style.width=`${a}px`,t.innerHTML=`
+`;function M(){if(document.getElementById("pm-overlay-styles"))return;const e=document.createElement("style");e.id="pm-overlay-styles",e.textContent=$,document.head.appendChild(e)}function T(){return'<svg viewBox="0 0 24 24"><path d="M12 1C8.676 1 6 3.676 6 7v2H4v14h16V9h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 10c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>'}function E(){return'<svg viewBox="0 0 24 24"><path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7zm-2 16H5V7h7V5H3v16h14v-7h-2v5h-3z"/></svg>'}function k(e){if(!e)return!1;const s=window.getComputedStyle(e);if(s.display==="none"||s.visibility==="hidden"||s.opacity==="0")return!1;const t=e.getBoundingClientRect();return t.width>0&&t.height>0}function b(e,s="success"){const t=document.querySelector(".pm-toast");t&&t.remove();const n=document.createElement("div");n.className=`pm-toast ${s}`,n.innerHTML=`<span>${s==="success"?"✓":"✕"}</span><span>${e}</span>`,document.body.appendChild(n),setTimeout(()=>{n.style.animation="pm-toast-appear 0.2s ease-out reverse",setTimeout(()=>n.remove(),200)},2e3)}async function z(){a.loading=!0;try{const e=await chrome.runtime.sendMessage({type:"GET_PASSWORDS_FOR_SITE",hostname:P});e?.success&&e.isAuthenticated!==!1?(a.isAuthenticated=!0,a.passwords=e.passwords||[],a.error=null):(a.isAuthenticated=(e?.isAuthenticated===!1,!1),a.passwords=[],a.error=e?.message||null)}catch{a.isAuthenticated=!1,a.passwords=[],a.error="Bağlantı hatası"}a.loading=!1}function f(){const e=document.querySelectorAll('input[type="password"]');return Array.from(e).filter(s=>k(s))}function v(){const e=['input[autocomplete="username"]','input[autocomplete="email"]','input[type="email"]','input[name*="user" i]','input[name*="email" i]','input[name*="login" i]','input[name*="account" i]','input[id*="user" i]','input[id*="email" i]','input[id*="login" i]','input[id*="account" i]','input[placeholder*="email" i]','input[placeholder*="kullanıcı" i]','input[placeholder*="user" i]','input[type="text"]'],s=[],t=new Set;for(const n of e)document.querySelectorAll(n).forEach(r=>{!t.has(r)&&k(r)&&!D(r)&&(t.add(r),s.push(r))});return s}function D(e){const s=(e.name||"").toLowerCase(),t=(e.id||"").toLowerCase(),n=(e.placeholder||"").toLowerCase(),r=e.type.toLowerCase(),d=(e.autocomplete||"").toLowerCase();return!!(r==="search"||d==="off"&&(s.includes("search")||t.includes("search")||n.includes("ara"))||s.includes("search")||t.includes("search")||n.includes("search"))}function q(){return f().length>0||F()}function F(){const e=f(),s=v();if(e.length===0&&s.length>0)for(const t of s){const n=t.closest("form"),r=n?.action?.toLowerCase()||"",d=n?.id?.toLowerCase()||"",c=n?.className?.toLowerCase()||"";if(r.includes("login")||r.includes("signin")||r.includes("auth")||d.includes("login")||d.includes("signin")||c.includes("login")||c.includes("signin")||n&&n.querySelector('button[type="submit"], input[type="submit"]'))return!0;const i=t.parentElement?.parentElement?.parentElement;if(i){const m=i.querySelectorAll("button");for(const g of m){const o=g.textContent?.toLowerCase()||"";if(o.includes("next")||o.includes("continue")||o.includes("devam")||o.includes("ileri")||o.includes("sonraki"))return!0}}}return!1}function S(){M();const e=f(),s=v();console.log("🔐 Password alanları bulundu:",e.length),console.log("🔐 Username alanları bulundu:",s.length),e.forEach(t=>{if(t.getAttribute("data-pm-attached"))return;t.setAttribute("data-pm-attached","true"),console.log("🔐 Password listener ekleniyor:",t.name||t.id||"unnamed");const n=r=>{r.stopPropagation(),console.log("🔐 Password input focus/click"),U(t,"password")};t.addEventListener("focus",n),t.addEventListener("click",n)}),s.forEach(t=>{if(t.getAttribute("data-pm-attached"))return;const n=t.closest("form");if(n&&n.querySelector('input[type="password"]'))return;t.setAttribute("data-pm-attached","true"),console.log("🔐 Username listener ekleniyor:",t.name||t.id||"unnamed");const d=c=>{c.stopPropagation(),console.log("🔐 Username input focus/click"),U(t,"username")};t.addEventListener("focus",d),t.addEventListener("click",d)})}async function U(e,s="password"){if(console.log("🔐 showDropdown çağrıldı, type:",s),y&&A===e)return;x(),A=e;const t=document.createElement("div");t.className="pm-dropdown";const n=e.getBoundingClientRect(),r=window.innerWidth,d=320;let c=n.left;c+d>r-10&&(c=r-d-10),c<10&&(c=10),t.style.top=`${n.bottom+4}px`,t.style.left=`${c}px`,t.style.width=`${d}px`,t.innerHTML=`
     <div class="pm-dropdown-content">
       <div class="pm-loading">
         <div class="pm-spinner"></div>
         Yükleniyor...
       </div>
     </div>
-  `,document.body.appendChild(t),u=t,await O();const d=t.querySelector(".pm-dropdown-content");if(d)if(!s.isAuthenticated)d.innerHTML=`
+  `,document.body.appendChild(t),y=t,await z();const i=t.querySelector(".pm-dropdown-content");if(i)if(!a.isAuthenticated)i.innerHTML=`
       <div class="pm-login-required">
         <div class="pm-login-text">Otomatik doldurma önerilerini görmek için hesabınızın kilidini açın</div>
         <button class="pm-login-btn">
@@ -235,19 +255,41 @@ console.log("🔐 Parola Yöneticisi content script yüklendi");let s={isAuthent
           Hesap kilidini aç
         </button>
       </div>
-    `,d.querySelector(".pm-login-btn")?.addEventListener("click",()=>{chrome.runtime.sendMessage({type:"OPEN_POPUP"}),m()});else if(s.passwords.length===0)d.innerHTML=`
+    `,i.querySelector(".pm-login-btn")?.addEventListener("click",()=>{chrome.runtime.sendMessage({type:"OPEN_POPUP"}),x()});else if(a.passwords.length===0)i.innerHTML=`
       <div class="pm-empty-state">
         <div class="pm-empty-text">Bu site için kayıtlı parola yok</div>
       </div>
-    `;else{let r="";s.passwords.forEach(i=>{const c=(i.name||i.websiteUrl||"P").charAt(0).toUpperCase();r+=`
-        <div class="pm-password-item" data-id="${i.id}">
-          <div class="pm-password-favicon">${c}</div>
+    `;else{let m="";if(s==="password"&&l&&l){const o=(l.name||l.websiteUrl||"P").charAt(0).toUpperCase();m+=`
+        <div class="pm-password-item pm-suggested" data-id="${l.id}">
+          <div class="pm-password-favicon">${o}</div>
           <div class="pm-password-info">
-            <div class="pm-password-name">${i.name||i.websiteUrl}</div>
-            <div class="pm-password-username">${i.username}</div>
+            <div class="pm-password-name">${l.name||l.websiteUrl}</div>
+            <div class="pm-password-username">${l.username} <span class="pm-suggested-badge">Önerilen</span></div>
           </div>
-          <div class="pm-password-fill-icon" title="Doldur">
-            ${I()}
+          <div class="pm-password-fill-icon" title="Şifreyi doldur">
+            ${E()}
           </div>
         </div>
-      `}),d.innerHTML=r,d.querySelectorAll(".pm-password-item").forEach(i=>{i.addEventListener("click",()=>{const c=i.getAttribute("data-id"),l=s.passwords.find(g=>g.id===c);l&&(L(l.username,l.password),m())})})}}function m(){u&&(u.remove(),u=null),y=null}document.addEventListener("click",e=>{const t=e.target;!t.closest(".pm-dropdown")&&!t.closest('input[type="password"]')&&m()});document.addEventListener("keydown",e=>{e.key==="Escape"&&m()});function E(e,t){try{const o=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value")?.set;return o?o.call(e,t):e.value=t,e.dispatchEvent(new Event("input",{bubbles:!0,cancelable:!0})),e.dispatchEvent(new Event("change",{bubbles:!0,cancelable:!0})),e.dispatchEvent(new KeyboardEvent("keydown",{bubbles:!0})),e.dispatchEvent(new KeyboardEvent("keyup",{bubbles:!0})),!0}catch(o){return console.error("Input value set error:",o),!1}}function L(e,t){console.log("🔐 fillCredentials çağrıldı:",{username:e,password:"***"});const o=P(),n=w();console.log("🔐 Bulunan alanlar:",{usernameFields:o.length,passwordFields:n.length});let a=!1,p=!1;if(e){const d=n[0];let r=null;if(d){const i=d.closest("form");if(i){const c=i.querySelectorAll('input[type="text"], input[type="email"], input[autocomplete="username"]');for(const l of c)if(h(l)){r=l;break}}if(!r){const c=document.querySelectorAll("input"),l=Array.from(c),g=l.indexOf(d);for(let b=g-1;b>=0;b--){const f=l[b];if((f.type==="text"||f.type==="email")&&h(f)){r=f;break}}}}!r&&o.length>0&&(r=o[0]),r&&(console.log("🔐 Username dolduruluyor:",r.name||r.id),E(r,e)&&(a=!0))}n.length>0&&t&&(console.log("🔐 Password dolduruluyor"),E(n[0],t)&&(p=!0)),a||p?k("Kimlik bilgileri dolduruldu","success"):k("Doldurulacak alan bulunamadı","error")}chrome.runtime.onMessage.addListener((e,t,o)=>((e.type==="AUTOFILL"||e.type==="AUTOFILL_PASSWORD")&&(L(e.username,e.password),o({success:!0})),e.type==="GET_PAGE_INFO"&&o({url:window.location.href,hostname:v,title:document.title,hasLoginForm:w().length>0}),!0));function F(){document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>{setTimeout(x,300)}):setTimeout(x,300),new MutationObserver(()=>{x()}).observe(document.body,{childList:!0,subtree:!0}),setTimeout(()=>{w().length>0&&chrome.runtime.sendMessage({type:"LOGIN_FORM_DETECTED",hostname:v}).catch(()=>{})},500)}F();console.log("🔐 Parola Yöneticisi autofill sistemi aktif");
+      `,a.passwords.filter(p=>p.id!==l.id).forEach(p=>{const u=(p.name||p.websiteUrl||"P").charAt(0).toUpperCase();m+=`
+          <div class="pm-password-item" data-id="${p.id}">
+            <div class="pm-password-favicon">${u}</div>
+            <div class="pm-password-info">
+              <div class="pm-password-name">${p.name||p.websiteUrl}</div>
+              <div class="pm-password-username">${p.username}</div>
+            </div>
+            <div class="pm-password-fill-icon" title="Doldur">
+              ${E()}
+            </div>
+          </div>
+        `})}else a.passwords.forEach(o=>{const p=(o.name||o.websiteUrl||"P").charAt(0).toUpperCase();m+=`
+          <div class="pm-password-item" data-id="${o.id}">
+            <div class="pm-password-favicon">${p}</div>
+            <div class="pm-password-info">
+              <div class="pm-password-name">${o.name||o.websiteUrl}</div>
+              <div class="pm-password-username">${o.username}</div>
+            </div>
+            <div class="pm-password-fill-icon" title="Doldur">
+              ${E()}
+            </div>
+          </div>
+        `});i.innerHTML=m,i.querySelectorAll(".pm-password-item").forEach(o=>{o.addEventListener("click",()=>{const p=o.getAttribute("data-id"),u=a.passwords.find(h=>h.id===p);u&&(s==="username"?(C(u.username),w=u.username,l=u,console.log("🔐 Username dolduruldu, entry hatırlandı:",u.name)):s==="password"&&v().length===0?(I(u.password),w=null,l=null):(O(u.username,u.password),w=null,l=null),x())})})}}function x(){y&&(y.remove(),y=null),A=null}document.addEventListener("click",e=>{const s=e.target,t=s.closest('input[type="password"]')||s.closest('input[type="text"]')||s.closest('input[type="email"]');!s.closest(".pm-dropdown")&&!t&&x()});document.addEventListener("keydown",e=>{e.key==="Escape"&&x()});function L(e,s){try{const t=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value")?.set;return t?t.call(e,s):e.value=s,e.dispatchEvent(new Event("input",{bubbles:!0,cancelable:!0})),e.dispatchEvent(new Event("change",{bubbles:!0,cancelable:!0})),e.dispatchEvent(new KeyboardEvent("keydown",{bubbles:!0})),e.dispatchEvent(new KeyboardEvent("keyup",{bubbles:!0})),!0}catch(t){return console.error("Input value set error:",t),!1}}function C(e){console.log("🔐 fillUsernameOnly çağrıldı:",e);const s=v();if(s.length>0){const t=s[0];if(console.log("🔐 Username dolduruluyor (only):",t.name||t.id),L(t,e))return b("Kullanıcı adı dolduruldu","success"),!0}return b("Kullanıcı adı alanı bulunamadı","error"),!1}function I(e){console.log("🔐 fillPasswordOnly çağrıldı");const s=f();return s.length>0&&(console.log("🔐 Password dolduruluyor (only)"),L(s[0],e))?(b("Şifre dolduruldu","success"),!0):(b("Şifre alanı bulunamadı","error"),!1)}function O(e,s){console.log("🔐 fillCredentials çağrıldı:",{username:e,password:"***"});const t=v(),n=f();console.log("🔐 Bulunan alanlar:",{usernameFields:t.length,passwordFields:n.length});let r=!1,d=!1;if(e){const c=n[0];let i=null;if(c){const m=c.closest("form");if(m){const g=m.querySelectorAll('input[type="text"], input[type="email"], input[autocomplete="username"]');for(const o of g)if(k(o)){i=o;break}}if(!i){const g=document.querySelectorAll("input"),o=Array.from(g),p=o.indexOf(c);for(let u=p-1;u>=0;u--){const h=o[u];if((h.type==="text"||h.type==="email")&&k(h)){i=h;break}}}}!i&&t.length>0&&(i=t[0]),i&&(console.log("🔐 Username dolduruluyor:",i.name||i.id),L(i,e)&&(r=!0))}n.length>0&&s&&(console.log("🔐 Password dolduruluyor"),L(n[0],s)&&(d=!0)),r||d?b("Kimlik bilgileri dolduruldu","success"):b("Doldurulacak alan bulunamadı","error")}chrome.runtime.onMessage.addListener((e,s,t)=>((e.type==="AUTOFILL"||e.type==="AUTOFILL_PASSWORD")&&(O(e.username,e.password),t({success:!0})),e.type==="AUTOFILL_USERNAME"&&(C(e.username),w=e.username,e.entry&&(l=e.entry),t({success:!0})),e.type==="AUTOFILL_PASSWORD_ONLY"&&(I(e.password),l=null,w=null,t({success:!0})),e.type==="GET_PAGE_INFO"&&t({url:window.location.href,hostname:P,title:document.title,hasLoginForm:q(),isMultiStepLogin:F()&&f().length===0,hasPasswordField:f().length>0,hasUsernameField:v().length>0}),!0));function B(){document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>{setTimeout(S,300)}):setTimeout(S,300),new MutationObserver(()=>{S(),l&&f().length>0&&w&&console.log("🔐 Multi-step: Password alanı tespit edildi, önceki entry mevcut:",w)}).observe(document.body,{childList:!0,subtree:!0}),setTimeout(()=>{const s=f().length>0,t=F();(s||t)&&chrome.runtime.sendMessage({type:"LOGIN_FORM_DETECTED",hostname:P,isMultiStep:t&&!s}).catch(()=>{})},500)}B();console.log("🔐 Parola Yöneticisi autofill sistemi aktif");

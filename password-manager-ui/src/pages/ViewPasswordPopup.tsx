@@ -3,6 +3,7 @@ import { getPasswordById } from '../helpers/api';
 import { decryptDataFromAPI } from '../helpers/encryption';
 import { formatLocalDateTime } from '../helpers/dateFormatter';
 import type { Password } from '../types';
+import { ApiError } from '../types';
 import '../styles/popup.css';
 
 interface ViewPasswordPopupProps {
@@ -60,15 +61,19 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
           passwordData.iv
         );
         setDecrypted(decryptedData);
-      } catch (decryptError: any) {
+      } catch (decryptError: unknown) {
         console.error('Decrypt hatası:', decryptError);
         setError('Şifre çözme başarısız');
         setLoading(false);
         return;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Parola yükleme hatası:', err);
-      setError('Parola yüklenemedi');
+      if (err instanceof ApiError) {
+        setError(err.getUserMessage());
+      } else {
+        setError('Parola yüklenemedi');
+      }
     } finally {
       setLoading(false);
     }

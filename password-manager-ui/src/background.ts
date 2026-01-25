@@ -4,6 +4,8 @@
  * Parolaları yönetir ve content script ile iletişim kurar
  */
 
+import { config } from './helpers/config';
+
 // ============================================
 // TYPES
 // ============================================
@@ -255,7 +257,7 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     
     const token = sessionData.authToken as string | undefined;
     const encryptionKey = sessionData.encryptionKey as string | undefined;
-    const apiUrl = (localData.apiUrl as string) || 'https://localhost:7051/api';
+    const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
     
     console.log('Auth check:', { hasToken: !!token, hasKey: !!encryptionKey });
     

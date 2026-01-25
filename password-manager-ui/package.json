@@ -1,12 +1,15 @@
 {
   "name": "password-manager-ui",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "build:extension": "tsc -b && vite build --mode development --outDir dist-extension",
+    "build": "tsc -b && vite build --outDir dist",
+    "build:extension": "tsc -b && vite build --mode extension --outDir dist-extension",
+    "build:extension:prod": "tsc -b && vite build --mode extension --outDir dist-extension",
+    "pack:extension": "cd dist-extension && powershell Remove-Item -Path public-extension -Recurse -Force -ErrorAction SilentlyContinue; powershell Compress-Archive -Force -Path * -DestinationPath ../public/password-manager-extension.zip && cd ..",
+    "release:extension": "npm run build:extension:prod && npm run pack:extension",
     "lint": "eslint .",
     "preview": "vite preview"
   },

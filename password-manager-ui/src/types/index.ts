@@ -160,3 +160,67 @@ export interface UpdateMasterPasswordDto {
   newPassword: string;
   updatedPasswords: UpdatedPasswordForMasterDto[];
 }
+
+/**
+ * .NET ProblemDetails formatı
+ * API hata yanıtları için standart format
+ */
+export interface ProblemDetails {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  instance?: string;
+  errors?: Record<string, string[]>;
+}
+
+/**
+ * API Error - Uygulama genelinde kullanılacak hata tipi
+ */
+export class ApiError extends Error {
+  status: number;
+  title: string;
+  detail: string;
+  type?: string;
+
+  constructor(problemDetails: ProblemDetails) {
+    super(problemDetails.detail || problemDetails.title || 'Bir hata oluştu');
+    this.name = 'ApiError';
+    this.status = problemDetails.status || 500;
+    this.title = problemDetails.title || 'Hata';
+    this.detail = problemDetails.detail || 'Beklenmeyen bir hata oluştu';
+    this.type = problemDetails.type;
+  }
+
+  /**
+   * Kullanıcıya gösterilecek mesaj
+   */
+  getUserMessage(): string {
+    // Business rule hatalarında detail mesajını göster
+    if (this.type?.includes('business') || this.status === 400) {
+      return this.detail;
+    }
+    
+    // 401 Unauthorized
+    if (this.status === 401) {
+      return 'Oturum süreniz doldu. Lütfen tekrar giriş yapın.';
+    }
+    
+    // 403 Forbidden
+    if (this.status === 403) {
+      return 'Bu işlem için yetkiniz bulunmuyor.';
+    }
+    
+    // 404 Not Found
+    if (this.status === 404) {
+      return 'İstenen kaynak bulunamadı.';
+    }
+    
+    // 500+ Server errors
+    if (this.status >= 500) {
+      return 'Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.';
+    }
+    
+    return this.detail;
+  }
+}
