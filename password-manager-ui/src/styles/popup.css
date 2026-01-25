@@ -291,12 +291,24 @@
   background: var(--pm-border);
 }
 
+/* Suggested/Matched items - temamıza uygun soft teal highlight */
 .popup-password-item.suggested {
-  background: var(--pm-success-bg);
+  background: var(--pm-bg-secondary);
+  border-left: 3px solid var(--pm-primary);
+  padding-left: calc(var(--pm-space-lg) - 3px);
 }
 
 .popup-password-item.suggested:hover {
-  background: #d4edda;
+  background: var(--pm-bg-tertiary);
+}
+
+/* Suggested item text colors - normal text renklerini koru */
+.popup-password-item.suggested .popup-password-name {
+  color: var(--pm-text-primary);
+}
+
+.popup-password-item.suggested .popup-password-username {
+  color: var(--pm-text-secondary);
 }
 
 .popup-password-favicon {

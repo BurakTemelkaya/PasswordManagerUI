@@ -283,23 +283,23 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
 
   return (
     <div className="container">
-      <header className="header">
-        <h1>⚙️ Ayarlar</h1>
-        <div className="header-actions">
-          <span className="user-name">👤 {userName || 'Kullanıcı'}</span>
-          <button onClick={handleLogout} className="btn btn-logout">
+      <header className="header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <button onClick={handleBack} className="btn btn-back" style={{ minWidth: '70px' }}>
+            ← Geri
+          </button>
+          <h1 style={{ margin: 0, fontSize: '18px', textAlign: 'center' }}>⚙️ Ayarlar</h1>
+          <button onClick={handleLogout} className="btn btn-logout" style={{ minWidth: '70px' }}>
             Çıkış Yap
           </button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-color)', marginTop: '4px' }}>
+          <span className="user-name" style={{ fontSize: '13px' }}>👤 {userName || 'Kullanıcı'}</span>
         </div>
       </header>
 
       <main className="main">
         <div className="form-container" style={{ maxWidth: '500px', margin: '0 auto' }}>
-          <div style={{ marginBottom: '24px' }}>
-            <button onClick={handleBack} className="btn btn-secondary">
-              ← Geri
-            </button>
-          </div>
 
           <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
             <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>

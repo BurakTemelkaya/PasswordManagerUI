@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getAllPasswords, logout, deletePassword } from '../helpers/api';
 import type { Password } from '../types';
 import { ApiError } from '../types';
@@ -153,6 +153,14 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
       <header className="header">
         <h1>Parolalarım</h1>
         <div className="header-actions">
+          <Link
+            to="/download"
+            className="btn btn-info"
+            style={{ marginRight: '8px', textDecoration: 'none' }}
+            title="Tarayıcı eklentisini indir"
+          >
+            🔌 Eklenti
+          </Link>
           <button
             onClick={() => {
               if (onSettings) {
