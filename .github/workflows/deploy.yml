@@ -25,9 +25,17 @@ jobs:
         working-directory: ./password-manager-ui
         run: npm ci
 
-      - name: Build project
+      - name: Build web app
         working-directory: ./password-manager-ui
-        run: npm run build
+        run: npm run build:web
+
+      - name: Build extension
+        working-directory: ./password-manager-ui
+        run: npm run build:extension:prod
+
+      - name: Create extension ZIP
+        working-directory: ./password-manager-ui/dist-extension
+        run: zip -r ../public/password-manager-extension.zip .
 
       - name: Deploy to Plesk via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
