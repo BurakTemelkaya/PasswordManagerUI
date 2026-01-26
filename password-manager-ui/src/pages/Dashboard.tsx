@@ -55,7 +55,6 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
       
       // Promise.all ile parallel decrypt işlemi
       await Promise.all(
-      await Promise.all(
         passwordList.map(async (pwd) => {
           try {
             const decryptedData = await decryptDataFromAPI(
