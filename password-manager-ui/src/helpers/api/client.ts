@@ -169,13 +169,13 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
       
-      const refreshToken = localStorage.getItem('refreshToken');
+      const currentToken = localStorage.getItem('authToken');
       
-      if (!refreshToken) {
-        // Refresh token yoksa çıkış yap
-        console.log('🔴 Refresh token bulunamadı, çıkış yapılıyor...');
+      if (!currentToken) {
+        // Token yoksa çıkış yap
+        console.log('🔴 Auth token bulunamadı, çıkış yapılıyor...');
         isRefreshing = false;
-        processQueue(new Error('No refresh token'), null);
+        processQueue(new Error('No auth token'), null);
         forceLogout();
         return Promise.reject(parseErrorResponse(error));
       }
@@ -183,24 +183,30 @@ apiClient.interceptors.response.use(
       try {
         console.log('🔄 Token yenileniyor...');
         
-        // Refresh token ile yeni token al
-        const response = await axios.post(`${config.api.baseURL}/Auth/RefreshToken`, {
-          refreshToken
-        });
+        // Mevcut JWT token ile yeni token al
+        const response = await axios.post(
+          `${config.api.baseURL}/Auth/RefreshToken`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${currentToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
         
-        const newAccessToken = response.data.accessToken?.token;
-        const newRefreshToken = response.data.refreshToken?.token;
+        // API response: { token, expirationDate }
+        const newAccessToken = response.data.token;
+        const newExpiration = response.data.expirationDate;
         
         if (newAccessToken) {
           localStorage.setItem('authToken', newAccessToken);
-          localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
+          if (newExpiration) {
+            localStorage.setItem('tokenExpiration', newExpiration);
+          }
           console.log('✅ Access token yenilendi');
-        }
-        
-        if (newRefreshToken) {
-          localStorage.setItem('refreshToken', newRefreshToken);
-          localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
-          console.log('✅ Refresh token yenilendi');
+        } else {
+          throw new Error('Yeni token alınamadı');
         }
         
         isRefreshing = false;

@@ -75,11 +75,11 @@ export interface RefreshTokenRequest {
 }
 
 /**
- * Refresh Token Response - Yeni access ve refresh token
+ * Refresh Token Response - Yeni access token
  */
 export interface RefreshTokenResponse {
-  accessToken: AccessToken;
-  refreshToken: RefreshToken;
+  token: string;
+  expirationDate: string;
 }
 
 /**

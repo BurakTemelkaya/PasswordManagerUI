@@ -136,29 +136,21 @@ export const logout = () => {
 };
 
 /**
- * Refresh token ile yeni access token al
- * @param refreshToken Mevcut refresh token
- * @returns Yeni access token ve refresh token
+ * Mevcut JWT token ile yeni access token al
+ * @returns Yeni access token
  */
-export const refreshAccessToken = async (refreshToken: string): Promise<RefreshTokenResponse> => {
+export const refreshAccessToken = async (): Promise<RefreshTokenResponse> => {
   try {
-    console.log('🔄 Refresh token ile yeni token alınıyor...');
+    console.log('🔄 JWT token ile yeni token alınıyor...');
     
-    const response = await apiClient.post<RefreshTokenResponse>('/Auth/RefreshToken', {
-      refreshToken
-    });
+    // apiClient zaten Authorization header ekliyor
+    const response = await apiClient.post<RefreshTokenResponse>('/Auth/RefreshToken', {});
     
-    // Yeni token'ları sakla
-    if (response.data.accessToken?.token) {
-      localStorage.setItem('authToken', response.data.accessToken.token);
-      localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
+    // Yeni token'ı sakla
+    if (response.data.token) {
+      localStorage.setItem('authToken', response.data.token);
+      localStorage.setItem('tokenExpiration', response.data.expirationDate);
       console.log('✅ Yeni access token kaydedildi');
-    }
-    
-    if (response.data.refreshToken?.token) {
-      localStorage.setItem('refreshToken', response.data.refreshToken.token);
-      localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
-      console.log('✅ Yeni refresh token kaydedildi');
     }
     
     return response.data;
