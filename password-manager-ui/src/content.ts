@@ -3,8 +3,6 @@
  * Input'a tıklandığında açılan, auth durumuna göre UI gösteren sistem
  */
 
-console.log('🔐 Parola Yöneticisi content script yüklendi');
-
 // ============================================
 // GLOBAL STATE
 // ============================================
@@ -521,20 +519,15 @@ function attachInputListeners() {
   
   const passwordFields = findPasswordFields();
   const usernameFields = findUsernameFields();
-  
-  console.log('🔐 Password alanları bulundu:', passwordFields.length);
-  console.log('🔐 Username alanları bulundu:', usernameFields.length);
+
   
   // Password field'lara listener ekle
   passwordFields.forEach(input => {
     if (input.getAttribute('data-pm-attached')) return;
-    input.setAttribute('data-pm-attached', 'true');
-    
-    console.log('🔐 Password listener ekleniyor:', input.name || input.id || 'unnamed');
+    input.setAttribute('data-pm-attached', 'true'); 
     
     const showHandler = (e: Event) => {
       e.stopPropagation();
-      console.log('🔐 Password input focus/click');
       showDropdown(input, 'password');
     };
     
@@ -549,7 +542,6 @@ function attachInputListeners() {
     
     // Otomatik doldurma için uygun değilse atla
     if (!isAutofillCandidate(input)) {
-      console.log('🔐 Atlanıyor (uygun değil):', input.name || input.id || 'unnamed');
       return;
     }
     
@@ -563,11 +555,8 @@ function attachInputListeners() {
     
     input.setAttribute('data-pm-attached', 'true');
     
-    console.log('🔐 Username listener ekleniyor:', input.name || input.id || 'unnamed');
-    
     const showHandler = (e: Event) => {
       e.stopPropagation();
-      console.log('🔐 Username input focus/click');
       showDropdown(input, 'username');
     };
     
@@ -577,7 +566,6 @@ function attachInputListeners() {
 }
 
 async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'username' = 'password') {
-  console.log('🔐 showDropdown çağrıldı, type:', inputType);
   
   // Eğer aynı input için zaten dropdown açıksa, kapatma
   if (activeDropdown && activeInput === input) {
@@ -722,7 +710,6 @@ async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'us
             fillUsernameOnly(pwd.username);
             lastFilledUsername = pwd.username;
             lastFilledEntry = pwd;
-            console.log('🔐 Username dolduruldu, entry hatırlandı:', pwd.name);
           } else if (inputType === 'password' && findUsernameFields().length === 0) {
             // Sadece password alanı var (multi-step 2. adım)
             fillPasswordOnly(pwd.password);
@@ -797,13 +784,11 @@ function setInputValue(input: HTMLInputElement, value: string): boolean {
 
 // Multi-step login: Sadece username doldur
 function fillUsernameOnly(username: string) {
-  console.log('🔐 fillUsernameOnly çağrıldı:', username);
   
   const usernameFields = findUsernameFields();
   
   if (usernameFields.length > 0) {
     const targetField = usernameFields[0];
-    console.log('🔐 Username dolduruluyor (only):', targetField.name || targetField.id);
     if (setInputValue(targetField, username)) {
       showToast('Kullanıcı adı dolduruldu', 'success');
       return true;
@@ -816,12 +801,10 @@ function fillUsernameOnly(username: string) {
 
 // Multi-step login: Sadece password doldur
 function fillPasswordOnly(password: string) {
-  console.log('🔐 fillPasswordOnly çağrıldı');
   
   const passwordFields = findPasswordFields();
   
   if (passwordFields.length > 0) {
-    console.log('🔐 Password dolduruluyor (only)');
     if (setInputValue(passwordFields[0], password)) {
       showToast('Şifre dolduruldu', 'success');
       return true;
@@ -833,12 +816,9 @@ function fillPasswordOnly(password: string) {
 }
 
 function fillCredentials(username: string, password: string) {
-  console.log('🔐 fillCredentials çağrıldı:', { username, password: '***' });
   
   const usernameFields = findUsernameFields();
   const passwordFields = findPasswordFields();
-  
-  console.log('🔐 Bulunan alanlar:', { usernameFields: usernameFields.length, passwordFields: passwordFields.length });
   
   let filledUsername = false;
   let filledPassword = false;
@@ -884,7 +864,6 @@ function fillCredentials(username: string, password: string) {
     }
     
     if (targetField) {
-      console.log('🔐 Username dolduruluyor:', targetField.name || targetField.id);
       if (setInputValue(targetField, username)) {
         filledUsername = true;
       }
@@ -893,7 +872,6 @@ function fillCredentials(username: string, password: string) {
   
   // Fill password
   if (passwordFields.length > 0 && password) {
-    console.log('🔐 Password dolduruluyor');
     if (setInputValue(passwordFields[0], password)) {
       filledPassword = true;
     }
@@ -963,11 +941,6 @@ function initialize() {
   // Watch for dynamic content - multi-step login için önemli
   const observer = new MutationObserver(() => {
     attachInputListeners();
-    
-    // Password alanı yeni eklenmiş olabilir (multi-step 2. adım)
-    if (lastFilledEntry && findPasswordFields().length > 0 && lastFilledUsername) {
-      console.log('🔐 Multi-step: Password alanı tespit edildi, önceki entry mevcut:', lastFilledUsername);
-    }
   });
   
   observer.observe(document.body, {
@@ -991,5 +964,3 @@ function initialize() {
 }
 
 initialize();
-console.log('🔐 Parola Yöneticisi autofill sistemi aktif');
-

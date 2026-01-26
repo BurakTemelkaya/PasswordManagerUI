@@ -40,7 +40,6 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
 
       // localStorage'dan Encryption Key'i al
       const encryptionKey = localStorage.getItem('encryptionKey');
-      console.log('🔑 Encryption Key var mı?', !!encryptionKey);
       
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
@@ -48,17 +47,14 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
         return;
       }
 
-      console.log('📥 Parolalar yükleniyor...');
       const passwordList = await getAllPasswords();
-      console.log('✅ API döndü, parola sayısı:', passwordList.length);
-      
       setPasswords(passwordList);
 
       // Şifreleri çöz (Encryption Key'i geç)
       const decrypted = new Map<string, DecryptedData>();
       
-      console.log('🔓 Decrypt işlemleri başlıyor...');
       // Promise.all ile parallel decrypt işlemi
+      await Promise.all(
       await Promise.all(
         passwordList.map(async (pwd) => {
           try {
@@ -78,13 +74,11 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
               websiteUrl: decryptedData.websiteUrl,
               username: decryptedData.username,
             });
-            console.log(`✅ ${decryptedData.name} decrypted başarılı`);
           } catch (err: any) {
             console.error(`❌ Decrypt hatası (${pwd.id}):`, err.message || err);
           }
         })
       );
-      console.log('✅ Tüm decrypt işlemleri tamamlandı, toplam:', decrypted.size);
       setDecryptedPasswords(decrypted);
       setError(null);
     } catch (err: unknown) {
@@ -115,12 +109,11 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
     });
   }, [passwords, searchQuery, decryptedPasswords]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     
     // Extension popup'ta mı diye kontrol et
     if (onLogout) {
-      console.log('📱 Extension popup modunda - onLogout callback çağrılıyor');
       onLogout();
     } else {
       // Normal web app'ta - router'a yönlendir

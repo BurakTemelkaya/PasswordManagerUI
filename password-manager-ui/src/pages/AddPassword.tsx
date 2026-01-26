@@ -114,7 +114,6 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
 
       // localStorage'dan Encryption Key'i al
       const encryptionKey = localStorage.getItem('encryptionKey');
-      console.log('🔑 Encryption Key var mı?', !!encryptionKey);
       
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
@@ -122,13 +121,6 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
       }
 
       // Verileri şifrele (Encryption Key'i geç)
-      console.log('🔐 Parola şifreleme işlemi başlıyor...');
-      console.log('📊 Şifrelenecek data:', {
-        name: formData.name,
-        username: formData.username,
-        passwordLength: formData.password.length,
-      });
-      
       const encryptedData = await encryptDataForAPI(
         {
           name: formData.name,
@@ -139,11 +131,6 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
         },
         encryptionKey
       );
-
-      console.log('✅ Şifreleme başarılı:', {
-        encryptedNameLength: encryptedData.encryptedName.length,
-        iv: encryptedData.iv.substring(0, 20) + '...',
-      });
 
       if (isEditMode && id) {
         // Güncelle

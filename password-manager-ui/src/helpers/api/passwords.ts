@@ -22,41 +22,33 @@ export const getAllPasswords = async (): Promise<Password[]> => {
     const response = await apiClient.get('/Password/GetAll');
     const data = response.data;
     
-    console.log('📦 GetAll API raw response:', data);
-    
     // API yanıtı dizi mi kontrol et
     if (Array.isArray(data)) {
-      console.log('✅ Direct array format, count:', data.length);
       return data as Password[];
     }
     
     // .NET ReferenceHandler.Preserve formatı ($id, $values)
     if (data && Array.isArray(data.$values)) {
-      console.log('✅ .NET $values format, count:', data.$values.length);
       return data.$values as Password[];
     }
     
     // PagedResponse formatında mı? (items property)
     if (data && Array.isArray(data.items)) {
-      console.log('✅ PagedResponse format, items count:', data.items.length);
       return data.items as Password[];
     }
     
     // Data property içinde mi? (ApiResponse wrapper)
     if (data && Array.isArray(data.data)) {
-      console.log('✅ ApiResponse wrapper format, data count:', data.data.length);
       return data.data as Password[];
     }
     
     // PascalCase versiyonları (C# backend)
     if (data && Array.isArray(data.Items)) {
-      console.log('✅ PascalCase Items format, count:', data.Items.length);
       return data.Items as Password[];
     }
     
     // Tek obje mi? (tek parola varsa)
     if (data && typeof data === 'object' && data.id) {
-      console.log('✅ Single password object detected');
       return [data as Password];
     }
     

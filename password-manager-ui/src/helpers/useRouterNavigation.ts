@@ -25,7 +25,7 @@ export const useRouterNavigation = (): UseRouterNavigationReturn => {
     location = useLocation();
   } catch (error) {
     // Not in Router context - likely extension popup mode
-    console.log('📱 Not in Router context - returning null values');
+    console.error('📱 Not in Router context - returning null values');
   }
 
   return { navigate, location };

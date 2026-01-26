@@ -160,8 +160,8 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, curren
     });
   }, [passwords, currentSite, decryptedPasswords]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     if (onLogout) {
       onLogout();
     } else {

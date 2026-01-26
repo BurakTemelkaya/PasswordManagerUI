@@ -16,8 +16,6 @@ import type { Password } from '../../types';
  */
 export const getUserKdfParams = async (userName: string): Promise<KdfParams> => {
   try {
-    console.log('🔄 Getting KDF params for:', userName);
-    console.log('🔗 API Base URL:', apiClient.defaults.baseURL);
     
     const response = await apiClient.get('/User/GetUserKdfParams', {
       params: { UserName: userName }
@@ -29,11 +27,6 @@ export const getUserKdfParams = async (userName: string): Promise<KdfParams> => 
     // Backend PascalCase (C#) veya camelCase dönebilir - her ikisini de destekle
     const kdfSalt = data.kdfSalt || data.KdfSalt || '';
     const kdfIterations = data.kdfIterations || data.KdfIterations || 600000;
-    
-    console.log('🔑 KDF Params received:', { 
-      kdfSalt: kdfSalt.substring(0, 20) + '...', 
-      kdfIterations 
-    });
     
     return { kdfSalt, kdfIterations };
   } catch (error: any) {
@@ -56,20 +49,8 @@ export const getUserKdfParams = async (userName: string): Promise<KdfParams> => 
  * Kullanıcı kayıt
  */
 export const register = async (data: UserForRegisterDto): Promise<RegisterResponse> => {
-  try {
-    console.log('🔄 Register API call başlanıyor:', {
-      baseURL: apiClient.defaults.baseURL,
-      endpoint: '/Auth/Register',
-      data: { ...data, password: '***' } // Password'u gizle
-    });
-    
+  try {  
     const response = await apiClient.post<RegisterResponse>('/Auth/Register', data);
-    
-    console.log('✅ Register API response:', {
-      hasAccessToken: !!response.data.accessToken,
-      hasKdfSalt: !!response.data.kdfSalt,
-      kdfIterations: response.data.kdfIterations
-    });
     
     return response.data;
   } catch (error: any) {
@@ -84,27 +65,19 @@ export const register = async (data: UserForRegisterDto): Promise<RegisterRespon
  * Kullanıcı giriş
  */
 export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
-  try {
-    console.log('🔄 Login API call başlanıyor:', {
-      baseURL: apiClient.defaults.baseURL,
-      endpoint: '/Auth/Login',
-      data
-    });
-    
+  try {   
     const response = await apiClient.post<LoginResponse>('/Auth/Login', data);
 
     // Token ve bilgileri sakla
     if (response.data.accessToken?.token) {
       localStorage.setItem('authToken', response.data.accessToken.token);
       localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
-      console.log('✅ Token localStorage\'a kaydedildi');
     }
     
     // Refresh token'ı da sakla
     if (response.data.refreshToken?.token) {
       localStorage.setItem('refreshToken', response.data.refreshToken.token);
       localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
-      console.log('✅ Refresh token localStorage\'a kaydedildi');
     }
 
     return response.data;
@@ -122,9 +95,22 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
 };
 
 /**
- * Kullanıcı çıkış
+ * Kullanıcı çıkış - Token'ı API'den iptal et ve local storage'ı temizle
  */
-export const logout = () => {
+export const logout = async (): Promise<void> => {
+  const token = localStorage.getItem('authToken');
+  
+  // Token varsa API'den iptal et
+  if (token) {
+    try {
+      await revokeToken(token);
+    } catch (error) {
+      // Hata olsa bile local logout devam etsin
+      console.warn('⚠️ Token iptal edilemedi, yine de çıkış yapılıyor:', error);
+    }
+  }
+  
+  // Local storage'ı temizle
   localStorage.removeItem('authToken');
   localStorage.removeItem('tokenExpiration');
   localStorage.removeItem('refreshToken');
@@ -132,7 +118,6 @@ export const logout = () => {
   localStorage.removeItem('encryptionKey');
   localStorage.removeItem('userName');
   localStorage.removeItem('passwords');
-  console.log('✅ Çıkış yapıldı');
 };
 
 /**
@@ -140,17 +125,14 @@ export const logout = () => {
  * @returns Yeni access token
  */
 export const refreshAccessToken = async (): Promise<RefreshTokenResponse> => {
-  try {
-    console.log('🔄 JWT token ile yeni token alınıyor...');
-    
-    // apiClient zaten Authorization header ekliyor
-    const response = await apiClient.post<RefreshTokenResponse>('/Auth/RefreshToken', {});
+  try {    
+    // apiClient zaten Authorization header ekliyor (GET metodu)
+    const response = await apiClient.get<RefreshTokenResponse>('/Auth/RefreshToken');
     
     // Yeni token'ı sakla
     if (response.data.token) {
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('tokenExpiration', response.data.expirationDate);
-      console.log('✅ Yeni access token kaydedildi');
     }
     
     return response.data;
@@ -217,26 +199,16 @@ export const updateMasterPassword = async (
   currentEncryptionKey: string
 ): Promise<{ success: boolean; newEncryptionKey: string }> => {
   try {
-    console.log('🔐 Master Password güncelleme başlıyor...');
-    console.log('📊 Toplam parola sayısı:', passwords.length);
-    console.log('🔑 KDF Salt:', kdfSalt.substring(0, 20) + '...');
-    console.log('🔑 KDF Iterations:', kdfIterations);
-
     // 1. Mevcut şifreden AuthHash hesapla (backend doğrulaması için)
-    console.log('🔑 Mevcut şifreden AuthHash hesaplanıyor...');
     const currentMasterKey = await deriveMasterKeyWithKdf(currentPassword, kdfSalt, kdfIterations);
     const currentAuthHash = await createAuthHash(currentMasterKey);
-    console.log('✅ Mevcut AuthHash hesaplandı');
 
     // 2. Yeni şifreden MasterKey, AuthHash ve EncryptionKey türet
-    console.log('🔑 Yeni şifreden türetme yapılıyor...');
     const newMasterKey = await deriveMasterKeyWithKdf(newPassword, kdfSalt, kdfIterations);
     const newAuthHash = await createAuthHash(newMasterKey);
     const newEncryptionKey = await deriveEncryptionKey(newMasterKey);
-    console.log('✅ Yeni AuthHash ve EncryptionKey türetildi');
 
     // 3. Tüm parolaları decrypt et ve yeni key ile re-encrypt et
-    console.log('🔄 Parolalar re-encrypt ediliyor...');
     const updatedPasswords = [];
 
     for (const password of passwords) {
@@ -277,14 +249,11 @@ export const updateMasterPassword = async (
           userId: password.userId,
         });
 
-        console.log(`✅ Parola re-encrypt edildi: ${password.id}`);
       } catch (decryptError) {
         console.error(`❌ Parola decrypt/re-encrypt hatası: ${password.id}`, decryptError);
         throw new Error(`Parola işlenirken hata: ${password.id}`);
       }
     }
-
-    console.log('✅ Tüm parolalar re-encrypt edildi');
 
     // 4. API'ye gönder (AuthHash'ler base64 encoded)
     const payload: UpdateMasterPasswordDto = {
@@ -293,9 +262,7 @@ export const updateMasterPassword = async (
       updatedPasswords: updatedPasswords,
     };
 
-    console.log('📤 API isteği gönderiliyor...');
-    const response = await apiClient.put('/User/UpdatePassword', payload);
-    console.log('✅ API isteği başarılı:', response.data);
+    await apiClient.put('/User/UpdatePassword', payload);
 
     return {
       success: true,

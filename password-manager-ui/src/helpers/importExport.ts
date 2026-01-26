@@ -45,12 +45,9 @@ export const parseCSV = (csvContent: string): CSVPasswordEntry[] => {
   // Header'ı al ve normalize et
   const headerLine = lines[0].toLowerCase();
   const headers = parseCSVLine(headerLine);
-  
-  console.log('📋 CSV Headers:', headers);
 
   // Header mapping - farklı formatları destekle
   const mapping = detectCSVFormat(headers);
-  console.log('🔍 Detected format mapping:', mapping);
 
   const passwords: CSVPasswordEntry[] = [];
   const errors: string[] = [];
@@ -79,7 +76,6 @@ export const parseCSV = (csvContent: string): CSVPasswordEntry[] => {
     }
   }
 
-  console.log(`✅ Parsed ${passwords.length} passwords from CSV`);
   return passwords;
 };
 
@@ -268,8 +264,6 @@ export const importPasswords = async (
       entries = parseCSV(fileContent);
     }
 
-    console.log(`📥 Importing ${entries.length} passwords...`);
-
     // Her parolayı şifrele ve kaydet
     for (const entry of entries) {
       try {
@@ -288,7 +282,6 @@ export const importPasswords = async (
         // API'ye kaydet
         await addPassword(encryptedData);
         result.success++;
-        console.log(`✅ Imported: ${entry.name}`);
       } catch (err) {
         result.failed++;
         result.errors.push(`${entry.name}: ${(err as Error).message}`);
@@ -338,8 +331,6 @@ export const exportPasswords = async (
       console.error(`❌ Failed to decrypt password: ${password.id}`, err);
     }
   }
-
-  console.log(`📤 Exporting ${decryptedPasswords.length} passwords as ${format.toUpperCase()}`);
 
   if (format === 'json') {
     return generateJSON(decryptedPasswords);

@@ -173,7 +173,6 @@ apiClient.interceptors.response.use(
       
       if (!currentToken) {
         // Token yoksa çıkış yap
-        console.log('🔴 Auth token bulunamadı, çıkış yapılıyor...');
         isRefreshing = false;
         processQueue(new Error('No auth token'), null);
         forceLogout();
@@ -181,12 +180,9 @@ apiClient.interceptors.response.use(
       }
       
       try {
-        console.log('🔄 Token yenileniyor...');
-        
-        // Mevcut JWT token ile yeni token al
-        const response = await axios.post(
+        // Mevcut JWT token ile yeni token al (GET metodu)
+        const response = await axios.get(
           `${config.api.baseURL}/Auth/RefreshToken`,
-          {},
           {
             headers: {
               'Authorization': `Bearer ${currentToken}`,
@@ -204,7 +200,6 @@ apiClient.interceptors.response.use(
           if (newExpiration) {
             localStorage.setItem('tokenExpiration', newExpiration);
           }
-          console.log('✅ Access token yenilendi');
         } else {
           throw new Error('Yeni token alınamadı');
         }
@@ -239,7 +234,6 @@ apiClient.interceptors.response.use(
  * Kullanıcıyı zorla çıkış yaptır
  */
 function forceLogout() {
-  console.log('🚪 Zorla çıkış yapılıyor...');
   localStorage.removeItem('authToken');
   localStorage.removeItem('tokenExpiration');
   localStorage.removeItem('refreshToken');

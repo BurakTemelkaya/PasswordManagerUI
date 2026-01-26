@@ -56,20 +56,16 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
       // 1. Frontend'de rastgele salt üret (16 byte, CSPRNG)
       const kdfSalt = generateSalt(16);
       const kdfIterations = 600000;
-      console.log('🔐 Register: KDF Salt üretildi:', kdfSalt.substring(0, 20) + '...');
 
       // 2. Salt ile MasterKey türet
-      console.log('🔐 MasterKey türetiliyor...');
       const masterKey = await deriveMasterKeyWithKdf(
         formData.masterPassword, 
         kdfSalt, 
         kdfIterations
       );
-      console.log('✅ MasterKey türetildi');
 
       // 3. MasterKey'den AuthHash oluştur (SHA512)
       const authHash = await createAuthHash(masterKey);
-      console.log('✅ AuthHash oluşturuldu:', authHash.substring(0, 20) + '...');
 
       // 4. Backend'e gönder: AuthHash + KdfSalt + KdfIterations
       const registerData: UserForRegisterDto = {
@@ -80,13 +76,10 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
         kdfIterations: kdfIterations,
       };
 
-      console.log('📤 Backend\'e kayıt isteği gönderiliyor...');
       const registerResponse = await register(registerData);
-      console.log('✅ Kayıt başarılı');
 
       // 5. Encryption Key türet (aynı MasterKey'den)
       const encryptionKey = await deriveEncryptionKey(masterKey);
-      console.log('✅ Encryption Key türetildi');
 
       // 6. Token ve bilgileri kaydet
       if (registerResponse.accessToken?.token) {
@@ -110,7 +103,6 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
           await chrome.storage.local.set({
             userName: formData.userName,
           });
-          console.log('✅ Chrome storage güncellendi');
         } catch (storageErr) {
           console.warn('Chrome storage hatası:', storageErr);
         }
@@ -118,7 +110,6 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
 
       // Extension popup'ta mı diye kontrol et
       if (onRegisterSuccess) {
-        console.log('📱 Extension popup modunda - onRegisterSuccess callback çağrılıyor');
         onRegisterSuccess();
       } else {
         // Normal web app'ta - dashboard'a yönlendir (zaten giriş yapıldı)

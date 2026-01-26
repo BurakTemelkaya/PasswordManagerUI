@@ -27,7 +27,6 @@ const getUserIdFromToken = (token: string): string | null => {
     const userId = decoded[userIdClaimKey];
     
     if (userId) {
-      console.log('✅ userId JWT claim\'inden alındı:', userId);
       return userId;
     }
     
@@ -113,28 +112,19 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
       localStorage.clear();
 
       // 1. Backend'den KDF parametrelerini al
-      console.log('🔑 KDF parametreleri alınıyor...');
       const kdfParams = await getUserKdfParams(formData.userName);
-      console.log('✅ KDF parametreleri alındı:', { 
-        kdfSalt: kdfParams.kdfSalt.substring(0, 20) + '...', 
-        kdfIterations: kdfParams.kdfIterations 
-      });
 
       // 2. KDF ile MasterKey türet
-      console.log('🔐 MasterKey türetiliyor...');
       const masterKey = await deriveMasterKeyWithKdf(
         formData.masterPassword, 
         kdfParams.kdfSalt, 
         kdfParams.kdfIterations
       );
-      console.log('✅ MasterKey türetildi');
 
       // 3. MasterKey'den AuthHash oluştur (SHA512)
       const authHash = await createAuthHash(masterKey);
-      console.log('✅ AuthHash oluşturuldu:', authHash.substring(0, 20) + '...');
 
       // 4. API'ye AuthHash gönder
-      console.log('🔐 Login isteği gönderiliyor...');
       const loginData: UserForLoginDto = {
         userName: formData.userName,
         password: stringToBase64(authHash), // AuthHash - base64 encoded
@@ -142,12 +132,9 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
       };
 
       await login(loginData);
-      console.log('✅ Login başarılı');
 
       // 5. Token'ı al
       const token = localStorage.getItem('authToken');
-      console.log('🔑 localStorage token var mı?', !!token);
-      console.log('📦 Token değeri:', token?.substring(0, 20) + '...');
 
       // JWT'den userId'yi al
       let userId = formData.userName; // fallback
@@ -186,21 +173,13 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             userId: userId,
             apiUrl: config.api.baseURL
           });
-          
-          console.log('✅ Chrome storage kaydedildi (session + local)');
         } catch (err) {
           console.warn('Chrome storage kayıt hatası:', err);
         }
       }
-
-      console.log('✅ Tüm storage bilgileri kaydedildi');
-      console.log('📍 localStorage keys:', Object.keys(localStorage));
-
-      console.log('🚀 Navigate çalışıyor...');
       
       // Extension popup'ta mı diye kontrol et
       if (onLoginSuccess) {
-        console.log('📱 Extension popup modunda - onLoginSuccess callback çağrılıyor');
         onLoginSuccess();
       } else {
         // Normal web app'ta - router'a yönlendir

@@ -233,7 +233,4 @@ if (document.getElementById('app')) {
       <Popup />
     </BrowserRouter>
   );
-
-  // Debug
-  console.log('✅ Popup loaded successfully');
 }

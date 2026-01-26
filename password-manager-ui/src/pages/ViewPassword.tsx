@@ -28,7 +28,6 @@ const ViewPassword = () => {
 
       // localStorage'dan Encryption Key'i al
       const encryptionKey = localStorage.getItem('encryptionKey');
-      console.log('🔑 Encryption Key var mı?', !!encryptionKey);
       
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
@@ -36,17 +35,7 @@ const ViewPassword = () => {
         return;
       }
 
-      console.log('📥 Parola yükleniyor, ID:', id);
       const passwordData = await getPasswordById(id!);
-      console.log('✅ API döndü (RAW):', {
-        id: passwordData.id,
-        encryptedNameLength: passwordData.encryptedName?.length,
-        encryptedPasswordLength: passwordData.encryptedPassword?.length,
-        iv: passwordData.iv,
-        ivLength: passwordData.iv?.length,
-        ivType: typeof passwordData.iv,
-      });
-      
       setPassword(passwordData);
 
       // IV kontrol - eski şifreler (IV olmadan) vs yeni şifreler (IV ile)
@@ -58,13 +47,6 @@ const ViewPassword = () => {
       }
 
       // Şifreyi çöz (Encryption Key'i geç)
-      console.log('🔓 Decrypt işlemi başlıyor...');
-      console.log('📋 Decrypt parametreleri:', {
-        encryptedNameLength: passwordData.encryptedName.length,
-        encryptionKeyLength: encryptionKey.length,
-        ivLength: passwordData.iv.length,
-      });
-      
       try {
         const decryptedData = await decryptDataFromAPI(
           {
@@ -77,7 +59,6 @@ const ViewPassword = () => {
           encryptionKey,
           passwordData.iv // Veritabanından gelen IV'ı geç
         );
-        console.log('✅ Decrypt başarılı:', decryptedData);
         setDecrypted(decryptedData);
       } catch (decryptError: any) {
         console.error('❌ Decrypt hatası:', decryptError);

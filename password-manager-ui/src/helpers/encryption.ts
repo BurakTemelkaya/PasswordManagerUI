@@ -260,18 +260,11 @@ export const deriveMasterKeyWithKdf = async (
   kdfType: string,
   iterations: number = 600000
 ): Promise<string> => {
-  try {
-    console.log('🔐 KDF ile Master Key türetiliyor...', { 
-      kdfType: kdfType.substring(0, 15) + '...', 
-      kdfTypeLength: kdfType.length,
-      iterations 
-    });
-    
+  try {    
     // kdfType base64 encoded - decode et
     let saltBuffer: ArrayBuffer;
     try {
       saltBuffer = base64ToBuffer(kdfType);
-      console.log('✅ kdfType base64 decode başarılı, salt length:', saltBuffer.byteLength);
     } catch (decodeError) {
       console.warn('⚠️ Base64 decode başarısız, string olarak kullanılıyor');
       saltBuffer = stringToBuffer(kdfType);
@@ -279,7 +272,6 @@ export const deriveMasterKeyWithKdf = async (
     
     // Password buffer'a dönüştür
     const passwordBuffer = stringToBuffer(masterPassword);
-    console.log('📝 Password buffer length:', passwordBuffer.byteLength);
 
     // PBKDF2 key import
     const keyMaterial = await crypto.subtle.importKey(
@@ -289,7 +281,6 @@ export const deriveMasterKeyWithKdf = async (
       false, 
       ['deriveKey']
     );
-    console.log('✅ Key material import başarılı');
 
     // PBKDF2 çalıştır
     const derivedKey = await crypto.subtle.deriveKey(
@@ -304,13 +295,11 @@ export const deriveMasterKeyWithKdf = async (
       true,
       ['encrypt', 'decrypt']
     );
-    console.log('✅ PBKDF2 deriveKey başarılı');
 
     // Key'i export et ve hex'e çevir
     const exportedKey = await crypto.subtle.exportKey('raw', derivedKey);
     const masterKeyHex = bufferToHex(exportedKey);
-
-    console.log('✅ KDF ile Master Key türetildi');
+    
     return masterKeyHex;
   } catch (error: any) {
     console.error('KDF Master key derivation error:', error);
@@ -430,13 +419,6 @@ export const decryptAES = async (
   ivBase64: string
 ): Promise<string> => {
   try {
-    console.log('🔐 decryptAES başlıyor (GCM)', {
-      encryptedLength: encryptedBase64.length,
-      keyHexLength: keyHex.length,
-      ivBase64Length: ivBase64.length,
-      ivBase64Prefix: ivBase64.substring(0, 20),
-    });
-
     // Key, IV ve encrypted data'yı buffer'a çevir
     let keyBuffer: ArrayBuffer;
     let ivBuffer: ArrayBuffer;
@@ -444,7 +426,6 @@ export const decryptAES = async (
 
     try {
       keyBuffer = hexToBuffer(keyHex);
-      console.log('✅ keyBuffer başarılı:', keyBuffer.byteLength, 'bytes');
     } catch (e) {
       console.error('❌ keyBuffer hatası:', e);
       throw new Error(`Key buffer başarısız: ${e}`);
@@ -452,7 +433,6 @@ export const decryptAES = async (
 
     try {
       ivBuffer = base64ToBuffer(ivBase64);
-      console.log('✅ ivBuffer başarılı:', ivBuffer.byteLength, 'bytes (GCM: 12 bytes optimal)');
     } catch (e) {
       console.error('❌ ivBuffer hatası:', e);
       throw new Error(`IV buffer başarısız: ${e}`);
@@ -460,7 +440,6 @@ export const decryptAES = async (
 
     try {
       encryptedBuffer = base64ToBuffer(encryptedBase64);
-      console.log('✅ encryptedBuffer başarılı:', encryptedBuffer.byteLength, 'bytes (ciphertext + authTag)');
     } catch (e) {
       console.error('❌ encryptedBuffer hatası:', e);
       throw new Error(`Encrypted buffer başarısız: ${e}`);
@@ -476,7 +455,6 @@ export const decryptAES = async (
         false,
         ['decrypt']
       );
-      console.log('✅ cryptoKey import başarılı (AES-GCM)');
     } catch (e) {
       console.error('❌ cryptoKey import hatası:', e);
       throw new Error(`Crypto key import başarısız: ${e}`);
@@ -490,7 +468,6 @@ export const decryptAES = async (
         cryptoKey,
         encryptedBuffer
       );
-      console.log('✅ decrypt başarılı (auth tag verified!):', decryptedBuffer.byteLength, 'bytes');
     } catch (e) {
       console.error('❌ crypto.subtle.decrypt hatası:', e);
       // GCM authentication verification başarısız
@@ -499,7 +476,6 @@ export const decryptAES = async (
 
     // String'e dönüştür
     const plainText = bufferToString(decryptedBuffer);
-    console.log('✅ plainText:', plainText.substring(0, 50), `(length: ${plainText.length})`);
 
     // SADECE null/undefined kontrol et - empty string geçerli bir değer!
     if (typeof plainText !== 'string') {

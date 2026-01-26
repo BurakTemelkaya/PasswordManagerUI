@@ -98,20 +98,15 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
       }
 
       // KDF ile şifre doğrulama (kdfSalt = kdfSalt)
-      console.log('🔐 Mevcut şifre doğrulanıyor (KDF salt ile)...');
       const currentMasterKey = await deriveMasterKeyWithKdf(currentPassword, kdfSalt, kdfIterations);
       const currentDerivedEncryptionKey = await deriveEncryptionKey(currentMasterKey);
 
       // localStorage'daki encryption key ile karşılaştır
       if (currentDerivedEncryptionKey !== encryptionKey) {
-        console.log('❌ Encryption key eşleşmedi');
-        console.log('Beklenen:', encryptionKey?.substring(0, 20) + '...');
-        console.log('Hesaplanan:', currentDerivedEncryptionKey.substring(0, 20) + '...');
         setError('Mevcut şifre yanlış');
         return false;
       }
 
-      console.log('✅ Encryption key eşleşti');
       return true;
     } catch (err) {
       console.error('Şifre doğrulama hatası:', err);
@@ -135,22 +130,16 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
 
     try {
       // 1. Mevcut şifreyi doğrula
-      console.log('🔐 Mevcut şifre doğrulanıyor...');
       const isValid = await verifyCurrentPassword();
       if (!isValid) {
         setLoading(false);
         return;
       }
-      console.log('✅ Mevcut şifre doğru');
 
       // 2. Tüm parolaları al
-      console.log('📥 Parolalar yükleniyor...');
       const passwords = await getAllPasswords();
-      console.log(`✅ ${passwords.length} parola yüklendi`);
 
       // 3. Master password güncelle (decrypt + re-encrypt + API)
-      console.log('🔄 Master Password güncelleniyor...');
-      
       const result = await updateMasterPassword(
         currentPassword,
         newPassword,
@@ -170,7 +159,6 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
           console.log('✅ Chrome session storage güncellendi');
         }
 
-        console.log('✅ Master Password başarıyla güncellendi');
         setSuccess('Master Password başarıyla güncellendi!');
         
         // Formu temizle
@@ -203,8 +191,8 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     if (onLogout) {
       onLogout();
     } else {

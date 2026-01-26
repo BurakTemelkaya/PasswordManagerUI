@@ -107,8 +107,6 @@ async function decryptPassword(encrypted: EncryptedPassword, encryptionKey: stri
     const password = await decryptAES(encrypted.encryptedPassword, encryptionKey, encrypted.iv);
     const websiteUrl = await decryptAES(encrypted.encryptedWebSiteUrl, encryptionKey, encrypted.iv);
     
-    console.log('Decrypted password:', { id: encrypted.id, name, username, websiteUrl: websiteUrl?.substring(0, 30) });
-    
     return {
       id: encrypted.id,
       name,
@@ -130,9 +128,7 @@ async function decryptPassword(encrypted: EncryptedPassword, encryptionKey: stri
  * Refresh token ile yeni access token al
  */
 async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise<{ accessToken: string; refreshToken: string } | null> {
-  try {
-    console.log('🔄 Background: Token yenileniyor...');
-    
+  try {    
     const response = await fetch(`${apiUrl}/Auth/RefreshToken`, {
       method: 'POST',
       headers: {
