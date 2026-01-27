@@ -224,7 +224,6 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
     }
     
     const data = await response.json();
-    console.log('API response:', data);
     
     // Direkt array dönüyor
     return Array.isArray(data) ? data : (data.$values || []);
@@ -285,9 +284,7 @@ const loginTabs = new Set<number>();
 // ============================================
 // EXTENSION LIFECYCLE
 // ============================================
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('🔐 Parola Yöneticisi eklentisi yüklendi');
-  
+chrome.runtime.onInstalled.addListener(() => {  
   try {
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({
@@ -318,9 +315,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // ============================================
 // MESSAGE HANDLERS
 // ============================================
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('📨 Background message:', request.type);
-  
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {  
   // Handle async operations
   (async () => {
     try {
@@ -374,8 +369,6 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     const token = sessionData.authToken as string | undefined;
     const encryptionKey = sessionData.encryptionKey as string | undefined;
     
-    console.log('Auth check:', { hasToken: !!token, hasKey: !!encryptionKey });
-    
     if (!token || !encryptionKey) {
       // Not authenticated
       sendResponse({ 
@@ -390,9 +383,7 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     // Önce local storage'dan parolaları kontrol et
     const cachedPasswords = localData.passwords as PasswordEntry[] | undefined;
     
-    if (cachedPasswords && cachedPasswords.length > 0) {
-      console.log('📦 Local storage\'dan parolalar yükleniyor:', cachedPasswords.length);
-      
+    if (cachedPasswords && cachedPasswords.length > 0) {      
       // Filter by hostname
       const matchingPasswords = cachedPasswords.filter(pwd => 
         matchesHostname(pwd.websiteUrl, hostname)
@@ -449,7 +440,6 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     // Parolaları local storage'a kaydet (cache olarak)
     if (decryptedPasswords.length > 0) {
       await chrome.storage.local.set({ passwords: decryptedPasswords });
-      console.log('📦 Parolalar local storage\'a kaydedildi:', decryptedPasswords.length);
     }
     
     // Filter by hostname
@@ -564,6 +554,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     chrome.action.setBadgeText({ text: '', tabId });
   }
 });
-
-console.log('🔐 Background service worker başlatıldı');
-

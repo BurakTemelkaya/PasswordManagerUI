@@ -142,7 +142,6 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
         const extractedUserId = getUserIdFromToken(token);
         if (extractedUserId) {
           userId = extractedUserId;
-          console.log('✅ userId JWT\'den alındı:', userId);
         }
       }
 

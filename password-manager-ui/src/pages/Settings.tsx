@@ -156,7 +156,6 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
         // Chrome extension ortamında session storage'ı da güncelle
         if (typeof chrome !== 'undefined' && chrome.storage?.session) {
           await chrome.storage.session.set({ encryptionKey: result.newEncryptionKey });
-          console.log('✅ Chrome session storage güncellendi');
         }
 
         setSuccess('Master Password başarıyla güncellendi!');

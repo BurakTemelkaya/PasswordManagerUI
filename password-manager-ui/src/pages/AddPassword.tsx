@@ -147,7 +147,6 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
 
       // Extension popup'ta mı diye kontrol et
       if (onSuccess) {
-        console.log('📱 Extension popup modunda - onSuccess callback çağrılıyor');
         onSuccess();
       } else {
         // Normal web app'ta - dashboard'a yönlendir

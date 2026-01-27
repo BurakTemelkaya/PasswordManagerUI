@@ -1,16 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import mkcert from 'vite-plugin-mkcert'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Extension build mi?
   const isExtensionBuild = mode === 'extension';
-  
+
   // Web sitesi için basit config
   if (!isExtensionBuild) {
     return {
-      plugins: [react()],
+      plugins: [react(), mkcert()],
       base: '/',
       publicDir: 'public',
       build: {
@@ -19,7 +20,7 @@ export default defineConfig(({ mode }) => {
       }
     };
   }
-  
+
   // Extension için multi-entry config
   return {
     plugins: [react()],

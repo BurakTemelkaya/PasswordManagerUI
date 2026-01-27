@@ -117,6 +117,7 @@ function parseErrorResponse(error: unknown): ApiError {
 export const apiClient: AxiosInstance = axios.create({
   baseURL: config.api.baseURL,
   timeout: config.api.timeout,
+  withCredentials: true, // Cookie'leri gönder (refresh token için)
   headers: {
     'Content-Type': 'application/json',
   },
@@ -184,6 +185,7 @@ apiClient.interceptors.response.use(
         const response = await axios.get(
           `${config.api.baseURL}/Auth/RefreshToken`,
           {
+            withCredentials: true, // Cookie'leri gönder
             headers: {
               'Authorization': `Bearer ${currentToken}`,
               'Content-Type': 'application/json'
