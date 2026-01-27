@@ -31,7 +31,6 @@ let authState: AuthState = {
 let activeDropdown: HTMLElement | null = null;
 let activeInput: HTMLInputElement | null = null;
 let currentHostname = window.location.hostname;
-let lastFilledUsername: string | null = null; // Multi-step login için son doldurulan kullanıcı adı
 let lastFilledEntry: PasswordEntry | null = null; // Son seçilen parola entry'si
 
 // ============================================
@@ -708,17 +707,14 @@ async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'us
           if (inputType === 'username') {
             // Sadece username doldur, şifreyi hatırla
             fillUsernameOnly(pwd.username);
-            lastFilledUsername = pwd.username;
             lastFilledEntry = pwd;
           } else if (inputType === 'password' && findUsernameFields().length === 0) {
             // Sadece password alanı var (multi-step 2. adım)
             fillPasswordOnly(pwd.password);
-            lastFilledUsername = null;
             lastFilledEntry = null;
           } else {
             // Normal: hem username hem password doldur
             fillCredentials(pwd.username, pwd.password);
-            lastFilledUsername = null;
             lastFilledEntry = null;
           }
           closeDropdown();
@@ -896,7 +892,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // Multi-step login: Sadece username doldur
   if (message.type === 'AUTOFILL_USERNAME') {
     fillUsernameOnly(message.username);
-    lastFilledUsername = message.username;
     if (message.entry) {
       lastFilledEntry = message.entry;
     }
@@ -907,7 +902,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'AUTOFILL_PASSWORD_ONLY') {
     fillPasswordOnly(message.password);
     lastFilledEntry = null;
-    lastFilledUsername = null;
     sendResponse({ success: true });
   }
   
