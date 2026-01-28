@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllPasswords, logout, deletePassword } from '../helpers/api';
+import { getAllPasswords, deletePassword } from '../helpers/api';
 import type { Password } from '../types';
 import { ApiError } from '../types';
 import { decryptDataFromAPI } from '../helpers/encryption';
+import { useVaultLock } from '../context/VaultLockContext';
 import '../styles/popup.css';
 
 interface DecryptedPassword {
@@ -14,16 +15,17 @@ interface DecryptedPassword {
 }
 
 interface DashboardProps {
-  onLogout?: () => void;
   onAddPassword?: () => void;
   onViewPassword?: (id: string) => void;
   onEditPassword?: (id: string) => void;
   onSettings?: () => void;
+  onPasswordGenerator?: () => void;
   currentUrl?: string;
 }
 
-const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, currentUrl }: DashboardProps) => {
+const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenerator, currentUrl }: DashboardProps) => {
   const navigate = useNavigate();
+  const { lock } = useVaultLock();
   const [passwords, setPasswords] = useState<Password[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +62,18 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, curren
       setLoading(true);
       setError(null);
 
-      const encryptionKey = localStorage.getItem('encryptionKey');
+      // Try chrome.storage.session first (extension), then localStorage (web app)
+      let encryptionKey: string | null = null;
+
+      if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+        const result = await chrome.storage.session.get(['encryptionKey']) as { encryptionKey?: string };
+        encryptionKey = result.encryptionKey || null;
+      }
+
+      if (!encryptionKey) {
+        encryptionKey = sessionStorage.getItem('encryptionKey') || localStorage.getItem('encryptionKey');
+      }
+
       if (!encryptionKey) {
         setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
         setLoading(false);
@@ -83,7 +96,7 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, curren
                 encryptedDescription: pwd.encryptedDescription,
                 encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
               },
-              encryptionKey,
+              encryptionKey!,
               pwd.iv
             );
             decrypted.set(pwd.id, {
@@ -159,15 +172,6 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, curren
       }
     });
   }, [passwords, currentSite, decryptedPasswords]);
-
-  const handleLogout = async () => {
-    await logout();
-    if (onLogout) {
-      onLogout();
-    } else {
-      navigate('/login');
-    }
-  };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -247,230 +251,295 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onSettings, curren
   }
 
   return (
-    <div className="popup-page popup-dashboard">
+    <div className="popup-page popup-dashboard" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '600px' }}>
       {/* Header */}
-      <header className="popup-header">
-        <div className="popup-header-title">🔐 Parola Yöneticisi</div>
-        <div className="popup-header-actions">
-          <button
-            className="popup-header-btn"
-            onClick={() => onAddPassword ? onAddPassword() : navigate('/passwords/add')}
-            title="Yeni Parola Ekle"
-          >
-            ➕
-          </button>
-          <button
-            className="popup-header-btn"
-            onClick={() => onSettings ? onSettings() : navigate('/settings')}
-            title="Ayarlar"
-          >
-            ⚙️
-          </button>
-          <button
-            className="popup-header-btn"
-            onClick={() => fetchPasswords()}
-            title="Yenile"
-          >
-            🔄
-          </button>
-          <button
-            className="popup-header-btn"
-            onClick={handleLogout}
-            title="Çıkış Yap"
-          >
-            🚪
-          </button>
-        </div>
+      <header className="popup-header" style={{ padding: '12px 16px', justifyContent: 'center', flexShrink: 0 }}>
+        <div className="popup-header-title" style={{ fontSize: '18px', fontWeight: '600' }}>🔐 Kasa</div>
       </header>
 
-      {/* Current Site Banner */}
-      {currentSite && matchingPasswords.length > 0 && (
-        <div className="popup-current-site">
-          <div className="popup-current-site-icon">🌐</div>
-          <div className="popup-current-site-info">
-            <div className="popup-current-site-label">Mevcut Site</div>
-            <div className="popup-current-site-url">{currentSite}</div>
-          </div>
-          <span className="popup-match-badge">
-            {matchingPasswords.length} eşleşme
-          </span>
-        </div>
-      )}
+      {/* Scrollable Content Wrapper */}
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Search */}
-      <div className="popup-search">
-        <div className="popup-search-wrapper">
-          <span className="popup-search-icon">🔍</span>
-          <input
-            type="text"
-            className="popup-search-input"
-            placeholder="Parola ara..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="popup-quick-actions">
-        <button
-          className="popup-quick-action"
-          onClick={() => onAddPassword ? onAddPassword() : navigate('/passwords/add')}
-        >
-          <span className="popup-quick-action-icon">➕</span>
-          Yeni Ekle
-        </button>
-        <button
-          className="popup-quick-action"
-          onClick={() => setActiveTab(activeTab === 'matching' ? 'all' : 'matching')}
-        >
-          <span className="popup-quick-action-icon">{activeTab === 'matching' ? '📋' : '🎯'}</span>
-          {activeTab === 'matching' ? 'Tümü' : 'Eşleşenler'}
-        </button>
-        <button className="popup-quick-action" onClick={() => fetchPasswords()}>
-          <span className="popup-quick-action-icon">🔄</span>
-          Yenile
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="popup-content">
-        {error && (
-          <div className="popup-alert popup-alert-error" style={{ margin: '12px 16px' }}>
-            {error}
+        {/* Current Site Banner */}
+        {currentSite && matchingPasswords.length > 0 && (
+          <div className="popup-current-site">
+            <div className="popup-current-site-icon">🌐</div>
+            <div className="popup-current-site-info">
+              <div className="popup-current-site-label">Mevcut Site</div>
+              <div className="popup-current-site-url">{currentSite}</div>
+            </div>
+            <span className="popup-match-badge">
+              {matchingPasswords.length} eşleşme
+            </span>
           </div>
         )}
 
-        {/* Matching Passwords Section */}
-        {currentSite && matchingPasswords.length > 0 && activeTab === 'all' && (
-          <>
-            <div className="popup-section-header">
-              <span>Bu site için ({matchingPasswords.length})</span>
+        {/* Search */}
+        <div className="popup-search">
+          <div className="popup-search-wrapper">
+            <span className="popup-search-icon">🔍</span>
+            <input
+              type="text"
+              className="popup-search-input"
+              placeholder="Parola ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="popup-quick-actions">
+          <button
+            className="popup-quick-action"
+            onClick={() => onAddPassword ? onAddPassword() : navigate('/passwords/add')}
+          >
+            <span className="popup-quick-action-icon">➕</span>
+            Yeni Ekle
+          </button>
+          <button
+            className="popup-quick-action"
+            onClick={() => setActiveTab(activeTab === 'matching' ? 'all' : 'matching')}
+          >
+            <span className="popup-quick-action-icon">{activeTab === 'matching' ? '📋' : '🎯'}</span>
+            {activeTab === 'matching' ? 'Tümü' : 'Eşleşenler'}
+          </button>
+          <button className="popup-quick-action" onClick={() => fetchPasswords()}>
+            <span className="popup-quick-action-icon">🔄</span>
+            Yenile
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="popup-content" style={{ paddingBottom: '100px' }}>
+          {error && (
+            <div className="popup-alert popup-alert-error" style={{ margin: '12px 16px' }}>
+              {error}
             </div>
+          )}
+
+          {/* Matching Passwords Section */}
+          {currentSite && matchingPasswords.length > 0 && activeTab === 'all' && (
+            <>
+              <div className="popup-section-header">
+                <span>Bu site için ({matchingPasswords.length})</span>
+              </div>
+              <div className="popup-password-list">
+                {matchingPasswords.map((password) => {
+                  const decrypted = decryptedPasswords.get(password.id);
+                  const faviconUrl = decrypted?.websiteUrl ? getFaviconUrl(decrypted.websiteUrl) : null;
+
+                  return (
+                    <div
+                      key={`match-${password.id}`}
+                      className="popup-password-item suggested"
+                      onClick={() => onViewPassword ? onViewPassword(password.id) : navigate(`/passwords/${password.id}`)}
+                    >
+                      <div className="popup-password-favicon">
+                        {faviconUrl ? (
+                          <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="popup-password-favicon-letter">{getInitial(decrypted?.name || 'P')}</span>
+                        )}
+                      </div>
+                      <div className="popup-password-info">
+                        <div className="popup-password-name">{decrypted?.name || 'Parola'}</div>
+                        <div className="popup-password-username">{decrypted?.username || '-'}</div>
+                      </div>
+                      <div className="popup-password-actions">
+                        <button
+                          className="popup-autofill-btn"
+                          onClick={(e) => handleAutofill(password.id, e)}
+                          title="Otomatik Doldur"
+                        >
+                          ⚡ Doldur
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* All Passwords Section */}
+          <div className="popup-section-header">
+            <span>
+              {activeTab === 'matching' ? 'Eşleşen Parolalar' : 'Tüm Parolalar'} ({filteredPasswords.length})
+            </span>
+          </div>
+
+          {filteredPasswords.length === 0 ? (
+            <div className="popup-empty">
+              <div className="popup-empty-icon">🔐</div>
+              <div className="popup-empty-title">
+                {searchQuery ? 'Sonuç bulunamadı' : 'Henüz parola yok'}
+              </div>
+              <div className="popup-empty-text">
+                {searchQuery ? 'Farklı bir arama deneyin' : 'İlk parolanızı ekleyerek başlayın'}
+              </div>
+              {!searchQuery && (
+                <button
+                  className="popup-btn popup-btn-primary"
+                  onClick={() => onAddPassword ? onAddPassword() : navigate('/passwords/add')}
+                >
+                  ➕ Yeni Parola Ekle
+                </button>
+              )}
+            </div>
+          ) : (
             <div className="popup-password-list">
-              {matchingPasswords.map((password) => {
-                const decrypted = decryptedPasswords.get(password.id);
-                const faviconUrl = decrypted?.websiteUrl ? getFaviconUrl(decrypted.websiteUrl) : null;
-                
-                return (
-                  <div
-                    key={`match-${password.id}`}
-                    className="popup-password-item suggested"
-                    onClick={() => onViewPassword ? onViewPassword(password.id) : navigate(`/passwords/${password.id}`)}
-                  >
-                    <div className="popup-password-favicon">
-                      {faviconUrl ? (
-                        <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      ) : (
-                        <span className="popup-password-favicon-letter">{getInitial(decrypted?.name || 'P')}</span>
-                      )}
-                    </div>
-                    <div className="popup-password-info">
-                      <div className="popup-password-name">{decrypted?.name || 'Parola'}</div>
-                      <div className="popup-password-username">{decrypted?.username || '-'}</div>
-                    </div>
-                    <div className="popup-password-actions">
-                      <button
-                        className="popup-autofill-btn"
-                        onClick={(e) => handleAutofill(password.id, e)}
-                        title="Otomatik Doldur"
-                      >
-                        ⚡ Doldur
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+              {filteredPasswords
+                .filter((pwd) => activeTab !== 'all' || !matchingPasswords.find((m) => m.id === pwd.id))
+                .map((password) => {
+                  const decrypted = decryptedPasswords.get(password.id);
+                  const faviconUrl = decrypted?.websiteUrl ? getFaviconUrl(decrypted.websiteUrl) : null;
 
-        {/* All Passwords Section */}
-        <div className="popup-section-header">
-          <span>
-            {activeTab === 'matching' ? 'Eşleşen Parolalar' : 'Tüm Parolalar'} ({filteredPasswords.length})
-          </span>
+                  return (
+                    <div
+                      key={password.id}
+                      className="popup-password-item"
+                      onClick={() => onViewPassword ? onViewPassword(password.id) : navigate(`/passwords/${password.id}`)}
+                    >
+                      <div className="popup-password-favicon">
+                        {faviconUrl ? (
+                          <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="popup-password-favicon-letter">{getInitial(decrypted?.name || 'P')}</span>
+                        )}
+                      </div>
+                      <div className="popup-password-info">
+                        <div className="popup-password-name">{decrypted?.name || 'Parola'}</div>
+                        <div className="popup-password-username">{decrypted?.username || '-'}</div>
+                      </div>
+                      <div className="popup-password-actions">
+                        <button
+                          className={`popup-action-btn primary ${copiedId === `user-${password.id}` ? 'copied' : ''}`}
+                          onClick={(e) => handleCopyUsername(password.id, e)}
+                          title="Kullanıcı Adını Kopyala"
+                        >
+                          {copiedId === `user-${password.id}` ? '✓' : '👤'}
+                        </button>
+                        <button
+                          className={`popup-action-btn primary ${copiedId === `pass-${password.id}` ? 'copied' : ''}`}
+                          onClick={(e) => handleCopyPassword(password.id, e)}
+                          title="Parolayı Kopyala"
+                        >
+                          {copiedId === `pass-${password.id}` ? '✓' : '🔑'}
+                        </button>
+                        <button
+                          className="popup-action-btn success"
+                          onClick={(e) => handleAutofill(password.id, e)}
+                          title="Otomatik Doldur"
+                        >
+                          ⚡
+                        </button>
+                        <button
+                          className="popup-action-btn danger"
+                          onClick={(e) => handleDelete(password.id, e)}
+                          title="Sil"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
+      </div> {/* Close scrollable content wrapper */}
 
-        {filteredPasswords.length === 0 ? (
-          <div className="popup-empty">
-            <div className="popup-empty-icon">🔐</div>
-            <div className="popup-empty-title">
-              {searchQuery ? 'Sonuç bulunamadı' : 'Henüz parola yok'}
-            </div>
-            <div className="popup-empty-text">
-              {searchQuery ? 'Farklı bir arama deneyin' : 'İlk parolanızı ekleyerek başlayın'}
-            </div>
-            {!searchQuery && (
-              <button
-                className="popup-btn popup-btn-primary"
-                onClick={() => onAddPassword ? onAddPassword() : navigate('/passwords/add')}
-              >
-                ➕ Yeni Parola Ekle
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="popup-password-list">
-            {filteredPasswords
-              .filter((pwd) => activeTab !== 'all' || !matchingPasswords.find((m) => m.id === pwd.id))
-              .map((password) => {
-                const decrypted = decryptedPasswords.get(password.id);
-                const faviconUrl = decrypted?.websiteUrl ? getFaviconUrl(decrypted.websiteUrl) : null;
-                
-                return (
-                  <div
-                    key={password.id}
-                    className="popup-password-item"
-                    onClick={() => onViewPassword ? onViewPassword(password.id) : navigate(`/passwords/${password.id}`)}
-                  >
-                    <div className="popup-password-favicon">
-                      {faviconUrl ? (
-                        <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      ) : (
-                        <span className="popup-password-favicon-letter">{getInitial(decrypted?.name || 'P')}</span>
-                      )}
-                    </div>
-                    <div className="popup-password-info">
-                      <div className="popup-password-name">{decrypted?.name || 'Parola'}</div>
-                      <div className="popup-password-username">{decrypted?.username || '-'}</div>
-                    </div>
-                    <div className="popup-password-actions">
-                      <button
-                        className={`popup-action-btn primary ${copiedId === `user-${password.id}` ? 'copied' : ''}`}
-                        onClick={(e) => handleCopyUsername(password.id, e)}
-                        title="Kullanıcı Adını Kopyala"
-                      >
-                        {copiedId === `user-${password.id}` ? '✓' : '👤'}
-                      </button>
-                      <button
-                        className={`popup-action-btn primary ${copiedId === `pass-${password.id}` ? 'copied' : ''}`}
-                        onClick={(e) => handleCopyPassword(password.id, e)}
-                        title="Parolayı Kopyala"
-                      >
-                        {copiedId === `pass-${password.id}` ? '✓' : '🔑'}
-                      </button>
-                      <button
-                        className="popup-action-btn success"
-                        onClick={(e) => handleAutofill(password.id, e)}
-                        title="Otomatik Doldur"
-                      >
-                        ⚡
-                      </button>
-                      <button
-                        className="popup-action-btn danger"
-                        onClick={(e) => handleDelete(password.id, e)}
-                        title="Sil"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </div>
+      {/* Bottom Navigation - Now static flex item */}
+      <nav style={{
+        background: 'var(--bg-sidebar)',
+        borderTop: '1px solid var(--border-color)',
+        display: 'flex',
+        justifyContent: 'space-around',
+        padding: '4px 0',
+        flexShrink: 0
+      }}>
+        <button
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--primary-color)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>🏠</span>
+          <span style={{ fontWeight: '600' }}>Kasa</span>
+        </button>
+        <button
+          onClick={() => onPasswordGenerator ? onPasswordGenerator() : navigate('/password-generator')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>🎲</span>
+          <span>Üreteci</span>
+        </button>
+        <button
+          onClick={() => onSettings ? onSettings() : navigate('/settings')}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>⚙️</span>
+          <span>Ayarlar</span>
+        </button>
+        <button
+          onClick={() => {
+            lock();
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+              setTimeout(() => window.close(), 100);
+            }
+          }}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>🔒</span>
+          <span>Kilitle</span>
+        </button>
+      </nav>
     </div>
   );
 };

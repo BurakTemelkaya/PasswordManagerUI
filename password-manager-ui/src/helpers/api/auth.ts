@@ -1,12 +1,12 @@
 import { apiClient } from './client';
 import type { UserForLoginDto, UserForRegisterDto, LoginResponse, RegisterResponse, UpdateMasterPasswordDto, KdfParams, RefreshTokenResponse } from '../../types';
-import { 
-  deriveMasterKeyWithKdf, 
-  deriveEncryptionKey, 
+import {
+  deriveMasterKeyWithKdf,
+  deriveEncryptionKey,
   createAuthHash,
-  decryptDataFromAPI, 
+  decryptDataFromAPI,
   encryptDataForAPI,
-  stringToBase64 
+  stringToBase64
 } from '../encryption';
 import type { Password } from '../../types';
 
@@ -16,18 +16,18 @@ import type { Password } from '../../types';
  */
 export const getUserKdfParams = async (userName: string): Promise<KdfParams> => {
   try {
-    
+
     const response = await apiClient.get('/User/GetUserKdfParams', {
       params: { UserName: userName }
     });
-    
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = response.data as any;
-    
+
     // Backend PascalCase (C#) veya camelCase dönebilir - her ikisini de destekle
     const kdfSalt = data.kdfSalt || data.KdfSalt || '';
     const kdfIterations = data.kdfIterations || data.KdfIterations || 600000;
-    
+
     return { kdfSalt, kdfIterations };
   } catch (error: any) {
     console.error('🔴 Get KDF Params API Error:', error);
@@ -35,12 +35,12 @@ export const getUserKdfParams = async (userName: string): Promise<KdfParams> => 
     console.error('🔴 Error response:', error?.response?.data);
     console.error('🔴 Error status:', error?.response?.status);
     console.error('🔴 Error code:', error?.code);
-    
+
     // CORS veya network hatası olabilir
     if (error?.code === 'ERR_NETWORK' || !error?.response) {
       throw new Error('API bağlantı hatası. CORS veya network problemi olabilir.');
     }
-    
+
     throw error;
   }
 };
@@ -49,9 +49,9 @@ export const getUserKdfParams = async (userName: string): Promise<KdfParams> => 
  * Kullanıcı kayıt
  */
 export const register = async (data: UserForRegisterDto): Promise<RegisterResponse> => {
-  try {  
+  try {
     const response = await apiClient.post<RegisterResponse>('/Auth/Register', data);
-    
+
     return response.data;
   } catch (error: any) {
     console.error('🔴 Register API Error:', error);
@@ -65,7 +65,7 @@ export const register = async (data: UserForRegisterDto): Promise<RegisterRespon
  * Kullanıcı giriş
  */
 export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
-  try {   
+  try {
     const response = await apiClient.post<LoginResponse>('/Auth/Login', data);
 
     // Token ve bilgileri sakla
@@ -73,8 +73,9 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
       localStorage.setItem('authToken', response.data.accessToken.token);
       localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
     }
-    
-    // Refresh token'ı da sakla
+
+    // Refresh token cookie olarak geliyor (httpOnly - güvenlik için)
+    // Response body'de olmasa da bu normaldir
     if (response.data.refreshToken?.token) {
       localStorage.setItem('refreshToken', response.data.refreshToken.token);
       localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
@@ -98,26 +99,33 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
  * Kullanıcı çıkış - Token'ı API'den iptal et ve local storage'ı temizle
  */
 export const logout = async (): Promise<void> => {
-  const token = localStorage.getItem('authToken');
-  
-  // Token varsa API'den iptal et
-  if (token) {
-    try {
-      await revokeToken(token);
-    } catch (error) {
-      // Hata olsa bile local logout devam etsin
-      console.warn('⚠️ Token iptal edilemedi, yine de çıkış yapılıyor:', error);
-    }
+  console.log('🚪 Logout başlatıldı');
+
+  // Refresh token cookie'de - API'den iptal et
+  try {
+    console.log('📡 RevokeToken API çağrısı yapılıyor...');
+    await revokeToken();
+    console.log('✅ RevokeToken başarılı');
+  } catch (error) {
+    // Hata olsa bile local logout devam etsin
+    console.warn('⚠️ Refresh token iptal edilemedi, yine de çıkış yapılıyor:', error);
   }
-  
+
   // Local storage'ı temizle
   localStorage.removeItem('authToken');
   localStorage.removeItem('tokenExpiration');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('refreshTokenExpiration');
+
+  // Encryption key sessionStorage'da tutuluyor
+  sessionStorage.removeItem('encryptionKey');
+  // Eski versiyonlardan kalma varsa temizle
   localStorage.removeItem('encryptionKey');
+
   localStorage.removeItem('userName');
   localStorage.removeItem('passwords');
+
+  console.log('✅ Logout tamamlandı');
 };
 
 /**
@@ -125,16 +133,16 @@ export const logout = async (): Promise<void> => {
  * @returns Yeni access token
  */
 export const refreshAccessToken = async (): Promise<RefreshTokenResponse> => {
-  try {    
+  try {
     // apiClient zaten Authorization header ekliyor (GET metodu)
     const response = await apiClient.get<RefreshTokenResponse>('/Auth/RefreshToken');
-    
+
     // Yeni token'ı sakla
     if (response.data.token) {
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('tokenExpiration', response.data.expirationDate);
     }
-    
+
     return response.data;
   } catch (error: any) {
     console.error('🔴 Refresh Token API Error:', error);
@@ -143,11 +151,15 @@ export const refreshAccessToken = async (): Promise<RefreshTokenResponse> => {
 };
 
 /**
- * Token iptal et
+ * Token iptal et (Cookie'den refresh token okur)
  */
-export const revokeToken = async (token: string) => {
+export const revokeToken = async () => {
   try {
-    const response = await apiClient.put('/Auth/RevokeToken', JSON.stringify(token));
+    console.log('🔄 RevokeToken isteği gönderiliyor (cookie kullanılıyor)');
+    // RefreshToken cookie'de olduğu için body göndermiyoruz
+    // OpenAPI spec'e göre string body bekliyor ama boş string gönderebiliriz
+    const response = await apiClient.put('/Auth/RevokeToken');
+    console.log('✅ RevokeToken yanıtı alındı:', response.status);
     return response.data;
   } catch (error) {
     console.error('🔴 Revoke Token API Error:', error);
@@ -270,7 +282,7 @@ export const updateMasterPassword = async (
     };
   } catch (error: any) {
     console.error('🔴 Master Password Update Error:', error);
-    
+
     // API hata mesajını yakala
     if (error.response?.data?.message) {
       throw new Error(error.response.data.message);
@@ -279,7 +291,7 @@ export const updateMasterPassword = async (
     } else if (error.message) {
       throw error;
     }
-    
+
     throw new Error('Master Password güncellenirken bir hata oluştu');
   }
 };

@@ -18,7 +18,27 @@ const DownloadExtension = () => {
     <div className="download-page">
       <div className="download-container">
         {/* Header */}
-        <header className="download-header">
+        <header className="download-header" style={{ position: 'relative' }}>
+          <button
+            onClick={() => navigate('/')}
+            className="btn-back-absolute"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            ← Geri
+          </button>
           <div className="download-logo">🔐</div>
           <h1>Parola Yöneticisi</h1>
           <p className="download-subtitle">
@@ -53,7 +73,7 @@ const DownloadExtension = () => {
         {/* Download Section */}
         <section className="download-section">
           <h2>Tarayıcı Eklentisini İndirin</h2>
-          
+
           <div className="download-options">
             {/* Chrome/Edge */}
             <div className="download-card">
@@ -81,7 +101,7 @@ const DownloadExtension = () => {
                 <strong>Çıkartın:</strong> ZIP dosyasını bir klasöre çıkartın.
               </li>
               <li>
-                <strong>Eklentiler sayfasını açın:</strong> 
+                <strong>Eklentiler sayfasını açın:</strong>
                 <code>chrome://extensions</code> adresine gidin.
               </li>
               <li>
@@ -111,7 +131,7 @@ const DownloadExtension = () => {
         {/* Footer */}
         <footer className="download-footer">
           <p>
-            🔐 Açık kaynak parola yöneticisi | 
+            🔐 Açık kaynak parola yöneticisi |
             <a href="https://github.com/BurakTemelkaya/PasswordManagerUI" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>

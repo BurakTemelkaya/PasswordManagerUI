@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { addPassword, updatePassword, getPasswordById } from '../helpers/api';
+import { usePasswords } from '../context/PasswordContext';
+import { addPassword, updatePassword, getPasswordById, deletePassword } from '../helpers/api';
 import { encryptDataForAPI, decryptDataFromAPI } from '../helpers/encryption';
 import type { CreatePasswordDto, UpdatedPasswordDto } from '../types';
 import { ApiError } from '../types';
@@ -13,6 +14,7 @@ interface AddPasswordProps {
 
 const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
   const navigate = useNavigate();
+  const { fetchPasswords } = usePasswords();
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
 
@@ -39,16 +41,16 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
     try {
       setInitialLoading(true);
 
-      // localStorage'dan Encryption Key'i al
-      const encryptionKey = localStorage.getItem('encryptionKey');
+      // sessionStorage'dan Encryption Key'i al
+      const encryptionKey = sessionStorage.getItem('encryptionKey');
       if (!encryptionKey) {
-        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        setError('Kasa kilitli. Lütfen yeniden giriş yapın.');
         setInitialLoading(false);
         return;
       }
 
       const password = await getPasswordById(id!);
-      
+
       // Şifreyi çöz (Encryption Key'i geç)
       const decrypted = await decryptDataFromAPI(
         {
@@ -112,11 +114,13 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
     try {
       setLoading(true);
 
-      // localStorage'dan Encryption Key'i al
-      const encryptionKey = localStorage.getItem('encryptionKey');
-      
+
+
+      // sessionStorage'dan Encryption Key'i al
+      const encryptionKey = sessionStorage.getItem('encryptionKey');
       if (!encryptionKey) {
-        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        setError('Kasa kilitli. Lütfen yeniden giriş yapın.');
+        setInitialLoading(false);
         return;
       }
 
@@ -145,6 +149,9 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
         await addPassword(createData);
       }
 
+      // Cache'i güncelle (force refresh)
+      await fetchPasswords(true);
+
       // Extension popup'ta mı diye kontrol et
       if (onSuccess) {
         onSuccess();
@@ -162,6 +169,26 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
       }
       console.error(err);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Bu parolayı silmek istediğinize emin misiniz?')) return;
+
+    try {
+      setLoading(true);
+      await deletePassword({ id: id! });
+      await fetchPasswords(true);
+
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate('/');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Silme işlemi başarısız.');
       setLoading(false);
     }
   };
@@ -283,6 +310,17 @@ const AddPassword = ({ onSuccess, onCancel }: AddPasswordProps) => {
           </div>
 
           <div className="form-actions">
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="btn"
+                style={{ backgroundColor: '#ef4444', color: 'white', marginRight: 'auto' }}
+                disabled={loading}
+              >
+                Sil
+              </button>
+            )}
             <button
               type="submit"
               className="btn btn-primary"

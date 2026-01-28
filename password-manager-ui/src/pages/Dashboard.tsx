@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getAllPasswords, logout, deletePassword } from '../helpers/api';
-import type { Password } from '../types';
+import { logout, deletePassword } from '../helpers/api';
 import { ApiError } from '../types';
-import { decryptDataFromAPI } from '../helpers/encryption';
 import { formatLocalDateTime } from '../helpers/dateFormatter';
+import { usePasswords } from '../context/PasswordContext';
+import { useVaultLock } from '../context/VaultLockContext';
 import '../styles/auth.css';
 
 interface DashboardProps {
@@ -15,87 +15,32 @@ interface DashboardProps {
   onSettings?: () => void; // Extension popup'ta ayarlar sayfası
 }
 
-interface DecryptedData {
-  name: string;
-  websiteUrl: string;
-  username: string;
-}
-
 const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, onSettings }: DashboardProps) => {
   const navigate = useNavigate();
-  const [passwords, setPasswords] = useState<Password[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Using Context for state management
+  const { passwords, decryptedPasswords, loading, error, fetchPasswords, checkForUpdates } = usePasswords();
+  const { lock } = useVaultLock();
   const [searchQuery, setSearchQuery] = useState('');
-  const [decryptedPasswords, setDecryptedPasswords] = useState<Map<string, DecryptedData>>(new Map());
 
-  useEffect(() => {
-    fetchPasswords();
-  }, []);
+  // Local error state for operations (like delete)
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const fetchPasswords = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
-      // localStorage'dan Encryption Key'i al
-      const encryptionKey = localStorage.getItem('encryptionKey');
-      
-      if (!encryptionKey) {
-        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
-        setLoading(false);
-        return;
-      }
+  // fetchPasswords and Auto-sync logic moved to Context
 
-      const passwordList = await getAllPasswords();
-      setPasswords(passwordList);
 
-      // Şifreleri çöz (Encryption Key'i geç)
-      const decrypted = new Map<string, DecryptedData>();
-      
-      // Promise.all ile parallel decrypt işlemi
-      await Promise.all(
-        passwordList.map(async (pwd) => {
-          try {
-            const decryptedData = await decryptDataFromAPI(
-              {
-                encryptedName: pwd.encryptedName,
-                encryptedUserName: pwd.encryptedUserName,
-                encryptedPassword: pwd.encryptedPassword,
-                encryptedDescription: pwd.encryptedDescription,
-                encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
-              },
-              encryptionKey,
-              pwd.iv // Veritabanından gelen IV'ı geç
-            );
-            decrypted.set(pwd.id, {
-              name: decryptedData.name,
-              websiteUrl: decryptedData.websiteUrl,
-              username: decryptedData.username,
-            });
-          } catch (err: any) {
-            console.error(`❌ Decrypt hatası (${pwd.id}):`, err.message || err);
-          }
-        })
-      );
-      setDecryptedPasswords(decrypted);
-      setError(null);
-    } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.getUserMessage());
-      } else {
-        setError('Parolalar yüklenemedi');
-      }
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   // Arama filtresi
   const filteredPasswords = useMemo(() => {
+    // Reset page when search changes
+    setCurrentPage(1);
+
     if (!searchQuery.trim()) return passwords;
-    
+
     const query = searchQuery.toLowerCase();
     return passwords.filter((pwd) => {
       const decrypted = decryptedPasswords.get(pwd.id);
@@ -108,9 +53,25 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
     });
   }, [passwords, searchQuery, decryptedPasswords]);
 
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredPasswords.length / itemsPerPage);
+  const currentPasswords = filteredPasswords.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLogout = async () => {
+    if (!window.confirm('Çıkış yapmak istediğinize emin misiniz?')) {
+      return;
+    }
+
     await logout();
-    
+
     // Extension popup'ta mı diye kontrol et
     if (onLogout) {
       onLogout();
@@ -123,13 +84,15 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
   const handleDelete = async (id: string) => {
     if (window.confirm('Bu parolayı silmek istediğinize emin misiniz?')) {
       try {
+        setLocalError(null);
         await deletePassword({ id });
-        setPasswords(passwords.filter((p) => p.id !== id));
+        // Context'i güncelle
+        await fetchPasswords(true);
       } catch (err: unknown) {
         if (err instanceof ApiError) {
-          setError(err.getUserMessage());
+          setLocalError(err.getUserMessage());
         } else {
-          setError('Silme işlemi başarısız');
+          setLocalError('Silme işlemi başarısız');
         }
         console.error(err);
       }
@@ -154,6 +117,14 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
             🔌 Eklenti
           </Link>
           <button
+            onClick={() => checkForUpdates(true)}
+            className="btn btn-secondary"
+            style={{ marginRight: '8px' }}
+            title="Şimdi Senkronize Et"
+          >
+            🔄
+          </button>
+          <button
             onClick={() => {
               if (onSettings) {
                 onSettings();
@@ -168,6 +139,16 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
             ⚙️
           </button>
           <span className="user-name">👤 Kullanıcı</span>
+
+          <button
+            onClick={lock}
+            className="btn btn-warning"
+            style={{ marginRight: '8px' }}
+            title="Kasayı Kilitle"
+          >
+            🔒 Kilitle
+          </button>
+
           <button onClick={handleLogout} className="btn btn-logout">
             Çıkış Yap
           </button>
@@ -206,7 +187,7 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
           />
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        {(error || localError) && <div className="alert alert-error">{error || localError}</div>}
 
         {filteredPasswords.length === 0 ? (
           <div className="empty-state">
@@ -231,58 +212,103 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
             )}
           </div>
         ) : (
-          <div className="password-grid">
-            {filteredPasswords.map((password) => {
-              const decrypted = decryptedPasswords.get(password.id);
-              return (
-                <div key={password.id} className="password-card">
-                  <h3>{decrypted?.name || 'Parola'}</h3>
-                  <p className="website">{decrypted?.websiteUrl || '-'}</p>
-                  <p className="username">Kullanıcı: {decrypted?.username || '-'}</p>
-                  <p className="password-date">
-                    Oluşturulma: {formatLocalDateTime(password.createdDate)}
-                  </p>
-                  <div className="actions">
-                    <button
-                      onClick={() => {
-                        if (onViewPassword) {
-                          onViewPassword(password.id);
-                        } else {
-                          navigate(`/passwords/${password.id}`);
-                        }
-                      }}
-                      className="btn btn-small btn-info"
-                    >
-                      Görüntüle
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (onEditPassword) {
-                          onEditPassword(password.id);
-                        } else {
-                          navigate(`/passwords/${password.id}/edit`);
-                        }
-                      }}
-                      className="btn btn-small btn-warning"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      onClick={() => handleDelete(password.id)}
-                      className="btn btn-small btn-danger"
-                    >
-                      Sil
-                    </button>
+          <>
+            <div className="password-grid">
+              {currentPasswords.map((password) => {
+                const decrypted = decryptedPasswords.get(password.id);
+                return (
+                  <div key={password.id} className="password-card">
+                    <h3>{decrypted?.name || 'Parola'}</h3>
+                    <p className="website">{decrypted?.websiteUrl || '-'}</p>
+                    <p className="username">Kullanıcı: {decrypted?.username || '-'}</p>
+                    <p className="password-date">
+                      Oluşturulma: {formatLocalDateTime(password.createdDate)}
+                    </p>
+                    <div className="actions">
+                      <button
+                        onClick={() => {
+                          if (onViewPassword) {
+                            onViewPassword(password.id);
+                          } else {
+                            navigate(`/passwords/${password.id}`);
+                          }
+                        }}
+                        className="btn btn-small btn-info"
+                      >
+                        Görüntüle
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (onEditPassword) {
+                            onEditPassword(password.id);
+                          } else {
+                            navigate(`/passwords/${password.id}/edit`);
+                          }
+                        }}
+                        className="btn btn-small btn-warning"
+                      >
+                        Düzenle
+                      </button>
+                      <button
+                        onClick={() => handleDelete(password.id)}
+                        className="btn btn-small btn-danger"
+                      >
+                        Sil
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '24px' }}>
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="btn btn-secondary"
+                  style={{ opacity: currentPage === 1 ? 0.5 : 1, marginTop: 0 }}
+                >
+                  &laquo; Önceki
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                  .map((page, index, array) => {
+                    // Add dots if there are gaps
+                    const showDots = index > 0 && page - array[index - 1] > 1;
+                    return (
+                      <div key={page} style={{ display: 'flex', alignItems: 'center' }}>
+                        {showDots && <span style={{ margin: '0 8px', color: 'var(--text-muted)' }}>...</span>}
+                        <button
+                          onClick={() => handlePageChange(page)}
+                          className={`btn ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ minWidth: '32px', marginTop: 0 }}
+                        >
+                          {page}
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="btn btn-secondary"
+                  style={{ opacity: currentPage === totalPages ? 0.5 : 1, marginTop: 0 }}
+                >
+                  Sonraki &raquo;
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Toplam parola sayısı */}
         <div style={{ textAlign: 'center', marginTop: '16px', color: 'var(--text-muted)', fontSize: '13px' }}>
           Toplam: {passwords.length} parola {searchQuery && `(${filteredPasswords.length} sonuç)`}
+          {totalPages > 1 && ` • Sayfa ${currentPage} / ${totalPages}`}
         </div>
       </main>
     </div>

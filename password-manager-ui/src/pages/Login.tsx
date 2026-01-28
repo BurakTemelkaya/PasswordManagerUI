@@ -21,15 +21,15 @@ const getUserIdFromToken = (token: string): string | null => {
   try {
     const payload = token.split('.')[1];
     const decoded = JSON.parse(atob(payload));
-    
+
     // .NET Asp.Net Identity claim key'i
     const userIdClaimKey = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier';
     const userId = decoded[userIdClaimKey];
-    
+
     if (userId) {
       return userId;
     }
-    
+
     // Fallback: diğer olası claim key'ler
     return decoded.sub || decoded.userId || decoded.nameid || null;
   } catch (error) {
@@ -70,7 +70,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
       if (savedUserName) {
         setFormData(prev => ({ ...prev, userName: savedUserName }));
       }
-      
+
       // Chrome extension ise chrome.storage'dan da dene
       if (typeof chrome !== 'undefined' && chrome.storage) {
         try {
@@ -83,7 +83,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
         }
       }
     };
-    
+
     loadSavedUsername();
   }, []);
 
@@ -116,8 +116,8 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
 
       // 2. KDF ile MasterKey türet
       const masterKey = await deriveMasterKeyWithKdf(
-        formData.masterPassword, 
-        kdfParams.kdfSalt, 
+        formData.masterPassword,
+        kdfParams.kdfSalt,
         kdfParams.kdfIterations
       );
 
@@ -147,7 +147,16 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
 
       // 6. Encryption Key türet (aynı MasterKey'den)
       const encryptionKey = await deriveEncryptionKey(masterKey);
-      localStorage.setItem('encryptionKey', encryptionKey);
+
+      // GÜVENLİK: Encryption Key'i ASLA localStorage'a yazma! 
+      // Sadece sessionStorage (tab kapanınca silinir) içinde tut.
+      sessionStorage.setItem('encryptionKey', encryptionKey);
+
+
+      // Encryption Key doğrulama için hash sakla (Bu hash ile şifre çözülemez, sadece doğrulama yapılır)
+      const encryptionKeyCheck = await import('../helpers/encryption').then(m => m.hashSHA256(encryptionKey));
+      localStorage.setItem('encryptionKeyCheck', encryptionKeyCheck);
+
       localStorage.setItem('userName', formData.userName);
       localStorage.setItem('userId', userId);
       // KDF parametrelerini kaydet (password update için lazım)
@@ -165,18 +174,21 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             kdfSalt: kdfParams.kdfSalt,
             kdfIterations: kdfParams.kdfIterations,
           });
-          
+
           // Local storage: Kalıcı veriler - kullanıcı adı hatırlansın
           await chrome.storage.local.set({
             userName: formData.userName,
             userId: userId,
+            encryptionKeyCheck: encryptionKeyCheck, // Extension için de sakla
+            kdfSalt: kdfParams.kdfSalt, // Vault unlock için gerekli
+            kdfIterations: kdfParams.kdfIterations, // Vault unlock için gerekli
             apiUrl: config.api.baseURL
           });
         } catch (err) {
           console.warn('Chrome storage kayıt hatası:', err);
         }
       }
-      
+
       // Extension popup'ta mı diye kontrol et
       if (onLoginSuccess) {
         onLoginSuccess();
@@ -187,7 +199,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
     } catch (err: unknown) {
       localStorage.clear();
       console.error('❌ Login error:', err);
-      
+
       // ApiError ise kullanıcı dostu mesajı göster
       if (err instanceof ApiError) {
         setError(err.getUserMessage());
@@ -261,7 +273,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             <Link to="/register">Kayıt ol</Link>
           )}
         </div>
-        
+
         {/* Extension Download Link - sadece web'de göster */}
         {!onLoginSuccess && (
           <div className="auth-footer" style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>

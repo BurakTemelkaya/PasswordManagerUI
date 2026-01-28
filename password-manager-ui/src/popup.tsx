@@ -11,8 +11,12 @@ import AddPassword from './pages/AddPassword';
 import ViewPasswordPopup from './pages/ViewPasswordPopup';
 import EditPasswordPopup from './pages/EditPasswordPopup';
 import Settings from './pages/Settings';
+import UnlockVaultPopup from './pages/UnlockVaultPopup';
+import PasswordGenerator from './pages/PasswordGenerator';
+import { VaultLockProvider } from './context/VaultLockContext';
+import { PasswordProvider } from './context/PasswordContext';
 
-type PopupPage = 'login' | 'register' | 'dashboard' | 'add-password' | 'view-password' | 'edit-password' | 'settings' | 'notfound';
+type PopupPage = 'login' | 'register' | 'dashboard' | 'add-password' | 'view-password' | 'edit-password' | 'settings' | 'password-generator' | 'notfound' | 'unlock-vault';
 
 interface PopupState {
   page: PopupPage;
@@ -26,47 +30,73 @@ const Popup: React.FC = () => {
   useEffect(() => {
     const checkAuth = async () => {
       let token: string | null = null;
-      
-      // Chrome extension ise SADECE session storage'dan kontrol et
-      if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+      let hasEncryptionKey = false;
+
+      // Chrome extension kontrolü
+      if (typeof chrome !== 'undefined' && chrome.storage) {
         try {
-          const result = await chrome.storage.session.get(['authToken', 'encryptionKey']);
-          
-          if (result.authToken && typeof result.authToken === 'string') {
-            token = result.authToken;
-            // localStorage'a da kaydet (popup içinde API çağrıları için)
-            localStorage.setItem('authToken', result.authToken);
+          // 1. Session storage (Master Key - Tarayıcı kapanınca silinir)
+          let sessionEncKey: string | undefined;
+          if (chrome.storage.session) {
+            const sessionResult = await chrome.storage.session.get(['encryptionKey']);
+            sessionEncKey = sessionResult.encryptionKey as string | undefined;
+          }
+
+          // 2. Encryption Key'i React session storage'ına sync et (UI oradan okuyor)
+          if (sessionEncKey) {
+            sessionStorage.setItem('encryptionKey', sessionEncKey);
+            hasEncryptionKey = true;
           } else {
-            // Session storage'da token yok - localStorage'ı da temizle
+            sessionStorage.removeItem('encryptionKey');
+            hasEncryptionKey = false;
+          }
+
+          // 3. Token kontrolü - (Kalıcı storage'dan da bakabiliriz çünkü "Refresh Token Kalsın" dendi)
+          // Ancak auth token access token'dır. Refresh token varsa auto-login denemeli miyiz?
+          // Evet, eğer access token yoksa ama refresh token varsa arka planda refresh yapılmalı.
+          // Basitlik için: authToken'ı storage.local'e de yedekleyelim Login'de.
+
+          // Önce session'a bak (Login sonrası hemen buradadır)
+          let sessionAuthToken: string | undefined;
+          if (chrome.storage.session) {
+            const sResult = await chrome.storage.session.get(['authToken']);
+            sessionAuthToken = sResult.authToken as string | undefined;
+          }
+
+          // Sonra local'e bak (Tarayıcı kapandı açıldı)
+          const localResult = await chrome.storage.local.get(['authToken', 'refreshToken']);
+
+          token = sessionAuthToken || (localResult.authToken as string) || null;
+
+          // Eğer token varsa session/local storage sync yap (React app için)
+          if (token) {
+            localStorage.setItem('authToken', token);
+          } else {
             localStorage.removeItem('authToken');
           }
-          
-          if (result.encryptionKey && typeof result.encryptionKey === 'string') {
-            localStorage.setItem('encryptionKey', result.encryptionKey);
-          } else {
-            localStorage.removeItem('encryptionKey');
-          }
+
         } catch (err) {
           console.warn('Chrome storage okuma hatası:', err);
-          // Hata durumunda localStorage'ı temizle
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('encryptionKey');
         }
       } else {
-        // Extension değilse localStorage kullan (geliştirme için)
+        // Dev modu
         token = localStorage.getItem('authToken');
+        hasEncryptionKey = !!sessionStorage.getItem('encryptionKey');
       }
-      
-      // Giriş yapılmamışsa login sayfasına yönlendir
+
+      // State Kararı
       if (!token) {
         setState({ page: 'login' });
+      } else if (!hasEncryptionKey) {
+        // Token var ama Key yok -> KİLİTLİ
+        setState({ page: 'unlock-vault' });
       } else {
         setState({ page: 'dashboard' });
       }
-      
+
       setLoading(false);
     };
-    
+
     checkAuth();
   }, []);
 
@@ -118,8 +148,24 @@ const Popup: React.FC = () => {
   };
 
   const handleLogout = () => {
+    // Tüm local verileri temizle
     localStorage.clear();
+    sessionStorage.clear();
+
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.session?.remove(['authToken', 'encryptionKey']);
+      chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords']);
+    }
+
     setState({ page: 'login' });
+  };
+
+  const handlePasswordGenerator = () => {
+    setState({ page: 'password-generator' });
+  };
+
+  const handleUnlock = () => {
+    setState({ page: 'dashboard' });
   };
 
   if (loading) {
@@ -127,6 +173,15 @@ const Popup: React.FC = () => {
       <div className="popup-loading">
         <div className="popup-spinner"></div>
         <span>Yükleniyor...</span>
+      </div>
+    );
+  }
+
+  // Unlock Vault sayfasını render et
+  if (state.page === 'unlock-vault') {
+    return (
+      <div className="popup-page" style={{ height: '100%', minHeight: '500px' }}>
+        <UnlockVaultPopup onUnlock={handleUnlock} onLogout={handleLogout} />
       </div>
     );
   }
@@ -153,25 +208,36 @@ const Popup: React.FC = () => {
   if (state.page === 'dashboard') {
     return (
       <div className="popup-page popup-dashboard">
-        <DashboardPopup 
-          onLogout={handleLogout}
+        <DashboardPopup
           onAddPassword={handleAddPassword}
           onViewPassword={handleViewPassword}
           onSettings={handleSettings}
+          onPasswordGenerator={handlePasswordGenerator}
         />
       </div>
+    );
+  }
+
+  // Password Generator sayfasını render et (popup içinde)
+  if (state.page === 'password-generator') {
+    return (
+      <PasswordGenerator
+        onDashboard={handleBackToDashboard}
+        onSettings={handleSettings}
+        onBack={handleBackToDashboard}
+      />
     );
   }
 
   // Settings sayfasını render et (popup içinde)
   if (state.page === 'settings') {
     return (
-      <div className="popup-page popup-form">
-        <Settings 
-          onBack={handleBackToDashboard}
-          onLogout={handleLogout}
-        />
-      </div>
+      <Settings
+        onDashboard={handleBackToDashboard}
+        onGenerator={handlePasswordGenerator}
+        onBack={handleBackToDashboard}
+        onLogout={handleLogout}
+      />
     );
   }
 
@@ -179,9 +245,9 @@ const Popup: React.FC = () => {
   if (state.page === 'add-password') {
     return (
       <div className="popup-page popup-form">
-        <AddPassword 
-          onSuccess={handleAddPasswordSuccess} 
-          onCancel={handleBackToDashboard} 
+        <AddPassword
+          onSuccess={handleAddPasswordSuccess}
+          onCancel={handleBackToDashboard}
         />
       </div>
     );
@@ -191,7 +257,7 @@ const Popup: React.FC = () => {
   if (state.page === 'view-password' && state.passwordId) {
     return (
       <div className="popup-page popup-detail">
-        <ViewPasswordPopup 
+        <ViewPasswordPopup
           id={state.passwordId}
           onBack={handleBackToDashboard}
           onEdit={handleEditPassword}
@@ -204,7 +270,7 @@ const Popup: React.FC = () => {
   if (state.page === 'edit-password' && state.passwordId) {
     return (
       <div className="popup-page popup-form">
-        <EditPasswordPopup 
+        <EditPasswordPopup
           id={state.passwordId}
           onSuccess={handleBackToDashboard}
           onCancel={handleBackToDashboard}
@@ -230,7 +296,11 @@ if (document.getElementById('app')) {
   const root = ReactDOM.createRoot(document.getElementById('app')!);
   root.render(
     <BrowserRouter>
-      <Popup />
+      <VaultLockProvider>
+        <PasswordProvider>
+          <Popup />
+        </PasswordProvider>
+      </VaultLockProvider>
     </BrowserRouter>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPasswordById } from '../helpers/api';
+import { getPasswordById, deletePassword } from '../helpers/api';
 import { decryptDataFromAPI } from '../helpers/encryption';
 import { formatLocalDateTime } from '../helpers/dateFormatter';
 import type { Password } from '../types';
@@ -31,8 +31,18 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
       setLoading(true);
       setError(null);
 
-      const encryptionKey = localStorage.getItem('encryptionKey');
-      
+      // Try chrome.storage.session first (extension), then localStorage (web app)
+      let encryptionKey: string | null = null;
+
+      if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+        const result = await chrome.storage.session.get(['encryptionKey']) as { encryptionKey?: string };
+        encryptionKey = result.encryptionKey || null;
+      }
+
+      if (!encryptionKey) {
+        encryptionKey = sessionStorage.getItem('encryptionKey') || localStorage.getItem('encryptionKey');
+      }
+
       if (!encryptionKey) {
         setError('Oturum süresi doldu. Lütfen yeniden giriş yapın.');
         setLoading(false);
@@ -97,6 +107,20 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
         password: decrypted.password,
       });
       window.close();
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Bu parolayı silmek istediğinize emin misiniz?')) return;
+
+    try {
+      setLoading(true);
+      await deletePassword({ id });
+      onBack(); // Go back after successful deletion
+    } catch (err) {
+      console.error('Delete error:', err);
+      setError('Silme işlemi başarısız.');
+      setLoading(false);
     }
   };
 
@@ -215,11 +239,11 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
         {decrypted?.description && (
           <div className="popup-detail-section">
             <div className="popup-detail-label">Notlar</div>
-            <div style={{ 
-              whiteSpace: 'pre-wrap', 
-              padding: '10px 12px', 
-              background: 'var(--pm-bg-tertiary)', 
-              borderRadius: '6px', 
+            <div style={{
+              whiteSpace: 'pre-wrap',
+              padding: '10px 12px',
+              background: 'var(--pm-bg-tertiary)',
+              borderRadius: '6px',
               fontSize: '13px',
               color: 'var(--pm-text-secondary)',
               fontFamily: 'var(--pm-font-mono)',
@@ -245,6 +269,13 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
 
       {/* Footer */}
       <div className="popup-footer">
+        <button
+          className="popup-btn"
+          onClick={handleDelete}
+          style={{ backgroundColor: '#ef4444', color: 'white', marginRight: 'auto' }}
+        >
+          🗑️ Sil
+        </button>
         <button className="popup-btn popup-btn-success" onClick={handleAutofill}>
           ⚡ Otomatik Doldur
         </button>

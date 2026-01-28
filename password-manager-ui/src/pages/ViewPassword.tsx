@@ -1,14 +1,18 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getPasswordById } from '../helpers/api';
+import { getPasswordById, deletePassword } from '../helpers/api';
 import { decryptDataFromAPI } from '../helpers/encryption';
 import { formatLocalDateTime } from '../helpers/dateFormatter';
 import type { Password } from '../types';
 import '../styles/pages.css';
 
+import { usePasswords } from '../context/PasswordContext';
+
 const ViewPassword = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { passwords, fetchPasswords } = usePasswords(); // Context'ten parolaları al
+
   const [password, setPassword] = useState<Password | null>(null);
   const [decrypted, setDecrypted] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -17,64 +21,96 @@ const ViewPassword = () => {
 
   useEffect(() => {
     if (id) {
-      fetchPassword();
+      loadPassword();
     }
-  }, [id]);
+  }, [id, passwords]); // passwords değişince (örn sync) burası da güncellensin mi? Evet.
 
-  const fetchPassword = async () => {
+  const loadPassword = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // localStorage'dan Encryption Key'i al
-      const encryptionKey = localStorage.getItem('encryptionKey');
-      
+      const encryptionKey = sessionStorage.getItem('encryptionKey');
       if (!encryptionKey) {
-        setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
+        setError('Kasa kilitli. Lütfen yeniden giriş yapın.');
         setLoading(false);
         return;
       }
 
-      const passwordData = await getPasswordById(id!);
-      setPassword(passwordData);
+      // 1. Önce Context'teki (hafızadaki) listeye bak
+      let targetPassword = passwords.find(p => p.id === id);
 
-      // IV kontrol - eski şifreler (IV olmadan) vs yeni şifreler (IV ile)
-      if (!passwordData.iv) {
-        console.warn('⚠️ IV BULUNAMADI - Eski şifreleme mi? Backward compat gerekli olabilir');
-        setError('Bu parola yeni format ile kaydedilmemiş. Admin ile iletişim kurun.');
+      // 2. Eğer listede yoksa (örn: direkt link ile gelindi ve liste henüz yüklenmedi veya listede yok)
+      // API'den çek
+      if (!targetPassword) {
+        try {
+          // Eğer context loading ise bekle? Hayır, direkt çekelim.
+          targetPassword = await getPasswordById(id!);
+        } catch (e) {
+          // API'de de bulunamadı
+          console.error(e);
+          setError('Parola bulunamadı.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!targetPassword) {
+        setError('Parola bulunamadı');
         setLoading(false);
         return;
       }
 
-      // Şifreyi çöz (Encryption Key'i geç)
+      setPassword(targetPassword);
+
+      // IV kontrol
+      if (!targetPassword.iv) {
+        console.warn('⚠️ IV BULUNAMADI');
+        setError('Bu parola eski formatta.');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Şifreyi çöz
+      // Context'teki cache (decryptedPasswords) sadece listeleme alanlarını tutar (password/description yoktur).
+      // Bu yüzden detay sayfasında HER ZAMAN şifre çözme işlemi yapılır.
       try {
         const decryptedData = await decryptDataFromAPI(
           {
-            encryptedName: passwordData.encryptedName,
-            encryptedUserName: passwordData.encryptedUserName,
-            encryptedPassword: passwordData.encryptedPassword,
-            encryptedDescription: passwordData.encryptedDescription,
-            encryptedWebSiteUrl: passwordData.encryptedWebSiteUrl,
+            encryptedName: targetPassword.encryptedName,
+            encryptedUserName: targetPassword.encryptedUserName,
+            encryptedPassword: targetPassword.encryptedPassword,
+            encryptedDescription: targetPassword.encryptedDescription,
+            encryptedWebSiteUrl: targetPassword.encryptedWebSiteUrl,
           },
           encryptionKey,
-          passwordData.iv // Veritabanından gelen IV'ı geç
+          targetPassword.iv
         );
         setDecrypted(decryptedData);
       } catch (decryptError: any) {
         console.error('❌ Decrypt hatası:', decryptError);
-        console.error('Hata detayı:', {
-          message: decryptError.message,
-          name: decryptError.name,
-          stack: decryptError.stack?.split('\n').slice(0, 3),
-        });
         setError(`Şifre çözme başarısız: ${decryptError.message}`);
-        setLoading(false);
-        return;
       }
+
     } catch (err: any) {
-      console.error('❌ Parola yükleme hatası:', err);
-      setError(`Parola yüklenemedi: ${err.message || err}`);
+      console.error('❌ Hata:', err);
+      setError(`İşlem başarısız: ${err.message || err}`);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Bu parolayı silmek istediğinize emin misiniz?')) return;
+
+    try {
+      setLoading(true);
+      await deletePassword({ id: id! });
+      await fetchPasswords(true);
+      navigate('/');
+    } catch (err) {
+      console.error(err);
+      setError('Silme işlemi başarısız.');
       setLoading(false);
     }
   };
@@ -168,6 +204,13 @@ const ViewPassword = () => {
         </div>
 
         <div className="actions">
+          <button
+            onClick={handleDelete}
+            className="btn"
+            style={{ backgroundColor: '#ef4444', color: 'white', marginRight: 'auto' }}
+          >
+            Sil
+          </button>
           <button
             onClick={() => navigate(`/passwords/${id}/edit`)}
             className="btn btn-warning"

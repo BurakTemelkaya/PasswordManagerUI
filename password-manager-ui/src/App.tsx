@@ -1,3 +1,4 @@
+import { BrowserRouter } from 'react-router-dom';
 import { AppRouter } from './router'
 import './App.css'
 import './styles/pages.css'
@@ -9,10 +10,19 @@ if (typeof window !== 'undefined') {
   console.log('💡 Debug mode: console\'da __debugCrypto() çağırarak state kontrol edebilirsin');
 }
 
+import { VaultLockProvider } from './context/VaultLockContext';
+import { PasswordProvider } from './context/PasswordContext';
+
 function App() {
   return (
     <div className="app">
-      <AppRouter />
+      <BrowserRouter>
+        <VaultLockProvider>
+          <PasswordProvider>
+            <AppRouter />
+          </PasswordProvider>
+        </VaultLockProvider>
+      </BrowserRouter>
     </div>
   )
 }

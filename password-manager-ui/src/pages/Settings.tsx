@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useVaultLock } from '../context/VaultLockContext';
 import { useNavigate } from 'react-router-dom';
 import { updateMasterPassword, getAllPasswords, logout } from '../helpers/api';
 import { deriveMasterKeyWithKdf, deriveEncryptionKey } from '../helpers/encryption';
@@ -7,12 +8,19 @@ import { ApiError } from '../types';
 import '../styles/auth.css';
 
 interface SettingsProps {
-  onBack?: () => void; // Extension popup için geri dönüş
-  onLogout?: () => void; // Extension popup için çıkış
+  onBack?: () => void;
+  onDashboard?: () => void;
+  onGenerator?: () => void;
+  onLogout?: () => void;
 }
 
-const Settings = ({ onBack, onLogout }: SettingsProps) => {
+
+type TabType = 'general' | 'security' | 'import-export';
+
+const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps) => {
+  const { lock } = useVaultLock();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<TabType>('general');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -21,7 +29,7 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  
+
   // Şifre göster/gizle
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -33,6 +41,10 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
   const [kdfSalt, setKdfSalt] = useState<string | null>(null);
   const [kdfIterations, setKdfIterations] = useState<number>(600000);
 
+  // Security Settings
+  const [vaultTimeout, setVaultTimeout] = useState<number>(5); // Default 5 mins
+  const [vaultAction, setVaultAction] = useState<'lock' | 'logout'>('lock');
+
   // Import/Export
   const [importLoading, setImportLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -43,9 +55,19 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
   useEffect(() => {
     // localStorage'dan kullanıcı bilgilerini al
     const storedUserName = localStorage.getItem('userName');
-    const storedEncryptionKey = localStorage.getItem('encryptionKey');
+
+    // sessionStorage'dan encryption key al
+    const storedEncryptionKey = sessionStorage.getItem('encryptionKey');
+
     const storedKdfSalt = localStorage.getItem('kdfSalt');
     const storedKdfIterations = localStorage.getItem('kdfIterations');
+
+    // Güvenlik ayarlarını oku
+    const savedTimeout = localStorage.getItem('vaultTimeout');
+    if (savedTimeout) setVaultTimeout(parseInt(savedTimeout, 10));
+
+    const savedAction = localStorage.getItem('vaultAction');
+    if (savedAction === 'lock' || savedAction === 'logout') setVaultAction(savedAction);
 
     setUserName(storedUserName);
     setEncryptionKey(storedEncryptionKey);
@@ -58,6 +80,22 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
       setError('Oturum bilgileri bulunamadı. Lütfen yeniden giriş yapın.');
     }
   }, []);
+
+  const saveSecuritySettings = () => {
+    localStorage.setItem('vaultTimeout', vaultTimeout.toString());
+    localStorage.setItem('vaultAction', vaultAction);
+
+    // Extension için de sync et (chrome.storage)
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({
+        vaultTimeout: vaultTimeout,
+        vaultAction: vaultAction
+      });
+    }
+
+    setSuccess('Güvenlik ayarları kaydedildi.');
+    setTimeout(() => setSuccess(null), 3000);
+  };
 
   const validateForm = (): boolean => {
     setError(null);
@@ -101,7 +139,7 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
       const currentMasterKey = await deriveMasterKeyWithKdf(currentPassword, kdfSalt, kdfIterations);
       const currentDerivedEncryptionKey = await deriveEncryptionKey(currentMasterKey);
 
-      // localStorage'daki encryption key ile karşılaştır
+      // sessionStorage'daki encryption key ile karşılaştır
       if (currentDerivedEncryptionKey !== encryptionKey) {
         setError('Mevcut şifre yanlış');
         return false;
@@ -150,21 +188,21 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
       );
 
       if (result.success) {
-        // 4. Yeni encryption key'i kaydet
-        localStorage.setItem('encryptionKey', result.newEncryptionKey);
-        
+        // 4. Yeni encryption key'i kaydet - sessionStorage'da!
+        sessionStorage.setItem('encryptionKey', result.newEncryptionKey);
+
         // Chrome extension ortamında session storage'ı da güncelle
         if (typeof chrome !== 'undefined' && chrome.storage?.session) {
           await chrome.storage.session.set({ encryptionKey: result.newEncryptionKey });
         }
 
         setSuccess('Master Password başarıyla güncellendi!');
-        
+
         // Formu temizle
         setCurrentPassword('');
         setNewPassword('');
         setConfirmNewPassword('');
-        
+
         // Yeni encryption key'i state'e set et
         setEncryptionKey(result.newEncryptionKey);
       }
@@ -212,13 +250,13 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
     try {
       const content = await file.text();
       const result = await importPasswords(content, file.name, encryptionKey);
-      
+
       setImportResult(result);
-      
+
       if (result.success > 0) {
         setSuccess(`${result.success} parola başarıyla import edildi!`);
       }
-      
+
       if (result.failed > 0) {
         setError(`${result.failed} parola import edilemedi.`);
       }
@@ -246,7 +284,7 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
 
     try {
       const passwords = await getAllPasswords();
-      
+
       if (passwords.length === 0) {
         setError('Export edilecek parola bulunamadı.');
         setExportLoading(false);
@@ -254,11 +292,11 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
       }
 
       const content = await exportPasswords(passwords, encryptionKey, exportFormat);
-      
+
       const timestamp = new Date().toISOString().split('T')[0];
       const fileName = `passwords_export_${timestamp}.${exportFormat}`;
       const mimeType = exportFormat === 'json' ? 'application/json' : 'text/csv';
-      
+
       downloadFile(content, fileName, mimeType);
       setSuccess(`${passwords.length} parola başarıyla export edildi!`);
     } catch (err) {
@@ -269,440 +307,230 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
   };
 
   return (
-    <div className="container">
-      <header className="header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <button onClick={handleBack} className="btn btn-back" style={{ minWidth: '70px' }}>
+    <div className="popup-page" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '600px' }}>
+      <header className="popup-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '4px 0' }}>
+          <button onClick={handleBack} className="btn-ghost" style={{ fontSize: '12px', padding: '4px 8px' }}>
             ← Geri
           </button>
           <h1 style={{ margin: 0, fontSize: '18px', textAlign: 'center' }}>⚙️ Ayarlar</h1>
-          <button onClick={handleLogout} className="btn btn-logout" style={{ minWidth: '70px' }}>
+          <button onClick={handleLogout} className="btn-ghost" style={{ fontSize: '12px', padding: '4px 8px', color: 'var(--pm-danger)' }}>
             Çıkış Yap
           </button>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '8px', borderTop: '1px solid var(--border-color)', marginTop: '4px' }}>
-          <span className="user-name" style={{ fontSize: '13px' }}>👤 {userName || 'Kullanıcı'}</span>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '4px', borderTop: '1px solid var(--border-color)', marginTop: '4px' }}>
+          <span className="user-name" style={{ fontSize: '12px' }}>👤 {userName || 'Kullanıcı'}</span>
+        </div>
+
+        {/* TAB MENU */}
+        <div className="settings-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', marginTop: '4px' }}>
+          {(['general', 'security', 'import-export'] as TabType[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
+              style={{
+                flex: 1,
+                padding: '6px',
+                borderRadius: '6px',
+                border: 'none',
+                background: activeTab === tab ? 'var(--bg-card)' : 'transparent',
+                color: activeTab === tab ? 'var(--pm-primary)' : 'var(--pm-text-secondary)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: activeTab === tab ? '600' : 'normal'
+              }}
+            >
+              {tab === 'import-export' ? 'Veri' : tab === 'general' ? 'Genel' : 'Güvenlik'}
+            </button>
+          ))}
         </div>
       </header>
 
-      <main className="main">
+      <main style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
         <div className="form-container" style={{ maxWidth: '500px', margin: '0 auto' }}>
 
-          <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
-            <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-              🔐 Master Password Değiştir
-            </h2>
+          {/* COMMON ALERTS */}
+          {error && <div className="alert alert-error">{error}</div>}
+          {success && <div className="alert alert-success">✅ {success}</div>}
 
-            {error && (
-              <div className="alert alert-error" style={{ marginBottom: '16px' }}>
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="alert alert-success" style={{ 
-                marginBottom: '16px', 
-                background: '#10b981', 
-                color: 'white', 
-                padding: '12px 16px', 
-                borderRadius: '8px' 
-              }}>
-                ✅ {success}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              {/* Mevcut Şifre */}
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label htmlFor="currentPassword" style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
-                  Mevcut Master Password
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    id="currentPassword"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="input"
-                    placeholder="Mevcut şifrenizi girin"
-                    disabled={loading}
-                    style={{
-                      width: '100%',
-                      padding: '12px 40px 12px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-input)',
-                      color: 'var(--text-primary)',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '16px'
-                    }}
-                  >
-                    {showCurrentPassword ? '🙈' : '👁️'}
-                  </button>
+          {/* GENERAL TAB */}
+          {activeTab === 'general' && (
+            <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
+              <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                🔐 Master Password Değiştir
+              </h2>
+              <form onSubmit={handleSubmit}>
+                {/* Mevcut Şifre */}
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="currentPassword">Mevcut Master Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="input"
+                      placeholder="Mevcut şifrenizi girin"
+                      disabled={loading}
+                    />
+                    <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="btn-icon-eye" style={{ position: 'absolute', right: '10px', top: '10px', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      {showCurrentPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Yeni Şifre */}
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label htmlFor="newPassword" style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
-                  Yeni Master Password
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    id="newPassword"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="input"
-                    placeholder="Yeni şifrenizi girin (en az 8 karakter)"
-                    disabled={loading}
-                    style={{
-                      width: '100%',
-                      padding: '12px 40px 12px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-input)',
-                      color: 'var(--text-primary)',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '16px'
-                    }}
-                  >
-                    {showNewPassword ? '🙈' : '👁️'}
-                  </button>
+                {/* Yeni Şifre */}
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label htmlFor="newPassword">Yeni Master Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="input"
+                      placeholder="Yeni şifrenizi girin (en az 8 karakter)"
+                      disabled={loading}
+                    />
+                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="btn-icon-eye" style={{ position: 'absolute', right: '10px', top: '10px', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      {showNewPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Yeni Şifre Tekrar */}
+                <div className="form-group" style={{ marginBottom: '24px' }}>
+                  <label htmlFor="confirmNewPassword">Yeni Master Password (Tekrar)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="input"
+                      placeholder="Yeni şifrenizi tekrar girin"
+                      disabled={loading}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="btn-icon-eye" style={{ position: 'absolute', right: '10px', top: '10px', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      {showConfirmPassword ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
+                  {loading ? 'Güncelleniyor...' : 'Master Password Güncelle'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* SECURITY TAB */}
+          {activeTab === 'security' && (
+            <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
+              <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                🛡️ Kasa Güvenlik Ayarları
+              </h2>
+
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px' }}>Kasa Zaman Aşımı (Kullanılmadığında)</label>
+                <select
+                  value={vaultTimeout}
+                  onChange={(e) => setVaultTimeout(parseInt(e.target.value))}
+                  className="input"
+                  style={{ width: '100%', padding: '10px' }}
+                >
+                  <option value="-1">Asla (Önerilmez)</option>
+                  <option value="1">1 Dakika</option>
+                  <option value="5">5 Dakika (Varsayılan)</option>
+                  <option value="15">15 Dakika</option>
+                  <option value="30">30 Dakika</option>
+                  <option value="60">1 Saat</option>
+                </select>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Belirtilen süre boyunca işlem yapmazsanız kasa otomatik olarak kilitlenir.
+                </p>
               </div>
 
-              {/* Yeni Şifre Tekrar */}
               <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label htmlFor="confirmNewPassword" style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
-                  Yeni Master Password (Tekrar)
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    id="confirmNewPassword"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="input"
-                    placeholder="Yeni şifrenizi tekrar girin"
-                    disabled={loading}
-                    style={{
-                      width: '100%',
-                      padding: '12px 40px 12px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-input)',
-                      color: 'var(--text-primary)',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '16px'
-                    }}
-                  >
-                    {showConfirmPassword ? '🙈' : '👁️'}
-                  </button>
-                </div>
+                <label style={{ display: 'block', marginBottom: '8px' }}>Zaman Aşımı Eylemi</label>
+                <select
+                  value={vaultAction}
+                  onChange={(e) => setVaultAction(e.target.value as 'lock' | 'logout')}
+                  className="input"
+                  style={{ width: '100%', padding: '10px' }}
+                >
+                  <option value="lock">Kasayı Kilitle (Master Parola Gerekir)</option>
+                  <option value="logout">Oturumu Kapat (Tekrar Email ile Giriş Gerekir)</option>
+                </select>
               </div>
 
-              {/* Uyarı Notu */}
-              <div style={{ 
-                marginBottom: '20px', 
-                padding: '12px 16px', 
-                background: 'rgba(245, 158, 11, 0.1)', 
-                borderRadius: '8px',
-                border: '1px solid rgba(245, 158, 11, 0.3)'
-              }}>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
-                  ⚠️ <strong>Önemli:</strong> Master Password değiştirildiğinde tüm parolalarınız yeni şifre ile yeniden şifrelenecektir. 
-                  Bu işlem geri alınamaz. Şifrenizi unutmayın!
-                </p>
-              </div>
-
-              {/* Şifre Güncelle Butonu */}
               <button
-                type="submit"
+                onClick={saveSecuritySettings}
                 className="btn btn-primary"
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
+                style={{ width: '100%' }}
               >
-                {loading ? (
-                  <>
-                    <span className="spinner" style={{
-                      width: '18px',
-                      height: '18px',
-                      border: '2px solid rgba(255,255,255,0.3)',
-                      borderTop: '2px solid white',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                    Güncelleniyor...
-                  </>
-                ) : (
-                  '🔒 Master Password Güncelle'
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Import/Export Bölümü */}
-          <div className="card" style={{ 
-            marginTop: '24px', 
-            padding: '24px', 
-            borderRadius: '12px', 
-            background: 'var(--bg-card)'
-          }}>
-            <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-              📦 Import / Export
-            </h2>
-
-            {/* Import Result */}
-            {importResult && (
-              <div style={{
-                marginBottom: '16px',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                background: importResult.failed > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                border: `1px solid ${importResult.failed > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
-              }}>
-                <p style={{ margin: 0, fontSize: '14px' }}>
-                  ✅ Başarılı: {importResult.success} | ❌ Başarısız: {importResult.failed}
-                </p>
-                {importResult.errors.length > 0 && (
-                  <details style={{ marginTop: '8px' }}>
-                    <summary style={{ cursor: 'pointer', fontSize: '13px', color: 'var(--text-muted)' }}>
-                      Hata detayları
-                    </summary>
-                    <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '12px' }}>
-                      {importResult.errors.slice(0, 5).map((err, i) => (
-                        <li key={i} style={{ color: 'var(--text-muted)' }}>{err}</li>
-                      ))}
-                      {importResult.errors.length > 5 && (
-                        <li style={{ color: 'var(--text-muted)' }}>
-                          ... ve {importResult.errors.length - 5} hata daha
-                        </li>
-                      )}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            )}
-
-            {/* Import Section */}
-            <div style={{ marginBottom: '24px' }}>
-              <h3 style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 500 }}>
-                📥 Parola Import Et
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                Chrome, Firefox, Bitwarden, LastPass veya 1Password'dan export edilen CSV/JSON dosyasını yükleyin.
-              </p>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.json"
-                onChange={handleImport}
-                style={{ display: 'none' }}
-                id="import-file"
-              />
-              
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importLoading || !encryptionKey}
-                className="btn btn-secondary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '12px 20px',
-                  fontSize: '14px'
-                }}
-              >
-                {importLoading ? (
-                  <>
-                    <span className="spinner" style={{
-                      width: '16px',
-                      height: '16px',
-                      border: '2px solid rgba(0,0,0,0.2)',
-                      borderTop: '2px solid currentColor',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                    Import ediliyor...
-                  </>
-                ) : (
-                  <>📂 Dosya Seç (CSV/JSON)</>
-                )}
+                Ayarları Kaydet
               </button>
             </div>
+          )}
 
-            {/* Export Section */}
-            <div>
-              <h3 style={{ marginBottom: '12px', fontSize: '16px', fontWeight: 500 }}>
-                📤 Parola Export Et
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                Tüm parolalarınızı başka parola yöneticilerine aktarabilirsiniz.
-              </p>
+          {/* IMPORT/EXPORT TAB */}
+          {activeTab === 'import-export' && (
+            <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
+              <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                📦 Import / Export
+              </h2>
 
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                {/* Format Seçimi */}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: `2px solid ${exportFormat === 'csv' ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                    background: exportFormat === 'csv' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}>
-                    <input
-                      type="radio"
-                      name="exportFormat"
-                      value="csv"
-                      checked={exportFormat === 'csv'}
-                      onChange={() => setExportFormat('csv')}
-                      style={{ display: 'none' }}
-                    />
-                    📊 CSV
-                  </label>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: `2px solid ${exportFormat === 'json' ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                    background: exportFormat === 'json' ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}>
-                    <input
-                      type="radio"
-                      name="exportFormat"
-                      value="json"
-                      checked={exportFormat === 'json'}
-                      onChange={() => setExportFormat('json')}
-                      style={{ display: 'none' }}
-                    />
-                    📋 JSON
-                  </label>
+              {/* Import Result Display - Same as before */}
+              {importResult && (
+                <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                  <p>✅ {importResult.success} Başarılı | ❌ {importResult.failed} Hatalı</p>
                 </div>
+              )}
 
-                {/* Export Button */}
+              {/* Import */}
+              <div style={{ marginBottom: '24px' }}>
+                <h3>📥 Parola Import Et</h3>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.json"
+                  onChange={handleImport}
+                  style={{ display: 'none' }}
+                />
                 <button
-                  onClick={handleExport}
-                  disabled={exportLoading || !encryptionKey}
-                  className="btn btn-primary"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '12px 20px',
-                    fontSize: '14px'
-                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importLoading || !encryptionKey}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', marginTop: '8px' }}
                 >
-                  {exportLoading ? (
-                    <>
-                      <span className="spinner" style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid rgba(255,255,255,0.3)',
-                        borderTop: '2px solid white',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite'
-                      }} />
-                      Export ediliyor...
-                    </>
-                  ) : (
-                    <>💾 Export Et</>
-                  )}
+                  {importLoading ? 'Import ediliyor...' : '📂 Dosya Seç (CSV/JSON)'}
                 </button>
               </div>
 
-              {/* Uyarı */}
-              <div style={{
-                marginTop: '16px',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.3)'
-              }}>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
-                  ⚠️ <strong>Dikkat:</strong> Export edilen dosya parolalarınızı şifresiz olarak içerir. 
-                  Dosyayı güvenli bir şekilde saklayın ve işiniz bitince silin.
-                </p>
+              {/* Export */}
+              <div>
+                <h3>📤 Parola Export Et</h3>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <label className={`radio-btn ${exportFormat === 'csv' ? 'active' : ''}`}>
+                      <input type="radio" checked={exportFormat === 'csv'} onChange={() => setExportFormat('csv')} style={{ display: 'none' }} /> CSV
+                    </label>
+                    <label className={`radio-btn ${exportFormat === 'json' ? 'active' : ''}`}>
+                      <input type="radio" checked={exportFormat === 'json'} onChange={() => setExportFormat('json')} style={{ display: 'none' }} /> JSON
+                    </label>
+                  </div>
+                  <button
+                    onClick={handleExport}
+                    disabled={exportLoading || !encryptionKey}
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                  >
+                    {exportLoading ? '...' : '💾 Export Et'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Desteklenen Formatlar Bilgisi */}
-          <div className="card" style={{ 
-            marginTop: '24px', 
-            padding: '24px', 
-            borderRadius: '12px', 
-            background: 'var(--bg-card)'
-          }}>
-            <h2 style={{ marginBottom: '16px', fontSize: '16px' }}>
-              ℹ️ Desteklenen Formatlar
-            </h2>
-            <div style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-              <div>✅ <strong>Chrome/Edge</strong> - CSV export</div>
-              <div>✅ <strong>Firefox</strong> - CSV export</div>
-              <div>✅ <strong>Bitwarden</strong> - CSV/JSON export</div>
-              <div>✅ <strong>LastPass</strong> - CSV export</div>
-              <div>✅ <strong>1Password</strong> - CSV export</div>
-              <div>✅ <strong>Genel CSV</strong> - name, url, username, password, notes sütunları</div>
-            </div>
-          </div>
         </div>
       </main>
 
@@ -711,7 +539,113 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        .tab-btn:hover {
+            background: rgba(255,255,255,0.05) !important;
+        }
+        .radio-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            font-size: 13px;
+        }
+        .radio-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
       `}</style>
+
+      {/* Bottom Navigation */}
+      <nav style={{
+        background: 'var(--bg-sidebar)',
+        borderTop: '1px solid var(--border-color)',
+        display: 'flex',
+        justifyContent: 'space-around',
+        padding: '4px 0',
+        flexShrink: 0
+      }}>
+        <button
+          onClick={() => onDashboard?.()}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--pm-text-secondary)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>🏠</span>
+          <span>Kasa</span>
+        </button>
+        <button
+          onClick={() => onGenerator?.()}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--pm-text-secondary)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>🎲</span>
+          <span>Üreteci</span>
+        </button>
+        <button
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--pm-primary)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>⚙️</span>
+          <span style={{ fontWeight: '600' }}>Ayarlar</span>
+        </button>
+        <button
+          onClick={() => {
+            lock();
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+              setTimeout(() => window.close(), 100);
+            }
+          }}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--pm-text-secondary)',
+            cursor: 'pointer',
+            padding: '6px 4px',
+            fontSize: '10px'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>🔒</span>
+          <span>Kilitle</span>
+        </button>
+      </nav>
     </div>
   );
 };

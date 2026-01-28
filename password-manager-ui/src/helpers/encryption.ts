@@ -28,7 +28,7 @@ const bufferToHex = (buffer: ArrayBuffer): string => {
 const hexToBuffer = (hex: string): ArrayBuffer => {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
   }
   return bytes.buffer;
 };
@@ -260,7 +260,7 @@ export const deriveMasterKeyWithKdf = async (
   kdfType: string,
   iterations: number = 600000
 ): Promise<string> => {
-  try {    
+  try {
     // kdfType base64 encoded - decode et
     let saltBuffer: ArrayBuffer;
     try {
@@ -269,16 +269,16 @@ export const deriveMasterKeyWithKdf = async (
       console.warn('⚠️ Base64 decode başarısız, string olarak kullanılıyor');
       saltBuffer = stringToBuffer(kdfType);
     }
-    
+
     // Password buffer'a dönüştür
     const passwordBuffer = stringToBuffer(masterPassword);
 
     // PBKDF2 key import
     const keyMaterial = await crypto.subtle.importKey(
-      'raw', 
-      passwordBuffer, 
-      'PBKDF2', 
-      false, 
+      'raw',
+      passwordBuffer,
+      'PBKDF2',
+      false,
       ['deriveKey']
     );
 
@@ -299,7 +299,7 @@ export const deriveMasterKeyWithKdf = async (
     // Key'i export et ve hex'e çevir
     const exportedKey = await crypto.subtle.exportKey('raw', derivedKey);
     const masterKeyHex = bufferToHex(exportedKey);
-    
+
     return masterKeyHex;
   } catch (error: any) {
     console.error('KDF Master key derivation error:', error);
@@ -359,33 +359,45 @@ export const generateIV = (): string => {
 };
 
 /**
- * AES-256 GCM şifreleme (Authenticated Encryption)
- * 2026 best practice: GCM mode authenticated encryption sağlıyor
+ * AES-256 GCM için CryptoKey import et (Performans optimizasyonu)
  * 
- * @param plainText Şifrelenecek metin
- * @param keyHex Şifreleme anahtarı (256-bit hex string)
- * @param ivBase64 Initialization Vector (Base64 string, 12 bytes)
- * @returns Promise<string> - Base64(IV + Ciphertext + AuthTag) - authenticated data!
+ * @param keyHex 256-bit hex string key
+ * @param usage 'encrypt' veya 'decrypt'
  */
-export const encryptAES = async (
-  plainText: string,
+const importAESKey = async (
   keyHex: string,
-  ivBase64: string
-): Promise<string> => {
+  usage: 'encrypt' | 'decrypt'
+): Promise<CryptoKey> => {
   try {
-    // Key ve IV'ı buffer'a çevir
     const keyBuffer = hexToBuffer(keyHex);
-    const ivBuffer = base64ToBuffer(ivBase64);
-    const plainTextBuffer = stringToBuffer(plainText);
-
-    // Crypto key import et
-    const cryptoKey = await crypto.subtle.importKey(
+    return await crypto.subtle.importKey(
       'raw',
       keyBuffer,
       { name: 'AES-GCM' },
       false,
-      ['encrypt']
+      [usage]
     );
+  } catch (error) {
+    console.error(`AES Key import error (${usage}):`, error);
+    throw new Error('Anahtar yükleme başarısız');
+  }
+};
+
+/**
+ * AES-256 GCM şifreleme (Hazır CryptoKey ile)
+ * 
+ * @param plainText Şifrelenecek metin
+ * @param cryptoKey Web Crypto API Key nesnesi
+ * @param ivBase64 Initialization Vector (Base64 string, 12 bytes)
+ */
+export const encryptAESWithCryptoKey = async (
+  plainText: string,
+  cryptoKey: CryptoKey,
+  ivBase64: string
+): Promise<string> => {
+  try {
+    const ivBuffer = base64ToBuffer(ivBase64);
+    const plainTextBuffer = stringToBuffer(plainText);
 
     // AES-256 GCM şifreleme - authentication tag otomatik eklenir
     const encryptedBuffer = await crypto.subtle.encrypt(
@@ -394,99 +406,71 @@ export const encryptAES = async (
       plainTextBuffer
     );
 
-    // encryptedBuffer zaten ciphertext + authTag'ı içeriyor
-    // Format: IV + Ciphertext + AuthTag (IV dahil edilmedi, ayrı parametre olarak geldiBu)
-    // Base64'e dönüştür
     return bufferToBase64(encryptedBuffer);
   } catch (error) {
-    console.error('Encryption error:', error);
+    console.error('Encryption (with key) error:', error);
     throw new Error('Şifreleme başarısız');
   }
 };
 
 /**
- * AES-256 GCM şifre çözme (Authenticated Encryption Verification)
- * 2026 best practice: Authentication tag otomatik olarak verify edilir
+ * AES-256 GCM şifreleme (Authenticated Encryption)
+ * Helper wrapper for single operations
+ */
+export const encryptAES = async (
+  plainText: string,
+  keyHex: string,
+  ivBase64: string
+): Promise<string> => {
+  const cryptoKey = await importAESKey(keyHex, 'encrypt');
+  return await encryptAESWithCryptoKey(plainText, cryptoKey, ivBase64);
+};
+
+/**
+ * AES-256 GCM şifre çözme (Hazır CryptoKey ile)
  * 
- * @param encryptedBase64 Şifrelenmiş metin (Base64 - Ciphertext + AuthTag)
- * @param keyHex Şifreleme anahtarı (256-bit hex string)
- * @param ivBase64 Initialization Vector (Base64 string, 12 bytes)
- * @returns Promise<string> - Şifresi çözülmüş metin (authenticated!)
+ * @param encryptedBase64 Şifrelenmiş metin (Base64)
+ * @param cryptoKey Web Crypto API Key nesnesi
+ * @param ivBase64 Initialization Vector (Base64)
+ */
+export const decryptAESWithCryptoKey = async (
+  encryptedBase64: string,
+  cryptoKey: CryptoKey,
+  ivBase64: string
+): Promise<string> => {
+  try {
+    const ivBuffer = base64ToBuffer(ivBase64);
+    const encryptedBuffer = base64ToBuffer(encryptedBase64);
+
+    // AES-256 GCM şifre çöz - authentication tag otomatik verify edilir!
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: ivBuffer },
+      cryptoKey,
+      encryptedBuffer
+    );
+
+    const plainText = bufferToString(decryptedBuffer);
+    if (typeof plainText !== 'string') {
+      throw new Error('Şifre çözülemedi');
+    }
+
+    return plainText;
+  } catch (error) {
+    console.error('Decryption (with key) error:', error);
+    throw new Error(`Şifre çözme başarısız: ${error}`);
+  }
+};
+
+/**
+ * AES-256 GCM şifre çözme helper wrapper
  */
 export const decryptAES = async (
   encryptedBase64: string,
   keyHex: string,
   ivBase64: string
 ): Promise<string> => {
-  try {
-    // Key, IV ve encrypted data'yı buffer'a çevir
-    let keyBuffer: ArrayBuffer;
-    let ivBuffer: ArrayBuffer;
-    let encryptedBuffer: ArrayBuffer;
-
-    try {
-      keyBuffer = hexToBuffer(keyHex);
-    } catch (e) {
-      console.error('❌ keyBuffer hatası:', e);
-      throw new Error(`Key buffer başarısız: ${e}`);
-    }
-
-    try {
-      ivBuffer = base64ToBuffer(ivBase64);
-    } catch (e) {
-      console.error('❌ ivBuffer hatası:', e);
-      throw new Error(`IV buffer başarısız: ${e}`);
-    }
-
-    try {
-      encryptedBuffer = base64ToBuffer(encryptedBase64);
-    } catch (e) {
-      console.error('❌ encryptedBuffer hatası:', e);
-      throw new Error(`Encrypted buffer başarısız: ${e}`);
-    }
-
-    // Crypto key import et
-    let cryptoKey: CryptoKey;
-    try {
-      cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        keyBuffer,
-        { name: 'AES-GCM' },
-        false,
-        ['decrypt']
-      );
-    } catch (e) {
-      console.error('❌ cryptoKey import hatası:', e);
-      throw new Error(`Crypto key import başarısız: ${e}`);
-    }
-
-    // AES-256 GCM şifre çöz - authentication tag otomatik verify edilir!
-    let decryptedBuffer: ArrayBuffer;
-    try {
-      decryptedBuffer = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: ivBuffer },
-        cryptoKey,
-        encryptedBuffer
-      );
-    } catch (e) {
-      console.error('❌ crypto.subtle.decrypt hatası:', e);
-      // GCM authentication verification başarısız
-      throw new Error(`GCM decrypt/verify başarısız (authentication tag geçersiz): ${e}`);
-    }
-
-    // String'e dönüştür
-    const plainText = bufferToString(decryptedBuffer);
-
-    // SADECE null/undefined kontrol et - empty string geçerli bir değer!
-    if (typeof plainText !== 'string') {
-      throw new Error('Şifre çözülemedi - geçersiz anahtar veya IV');
-    }
-
-    return plainText;
-  } catch (error) {
-    console.error('❌ Decryption error:', error);
-    throw new Error(`Şifre çözme başarısız: ${error}`);
-  }
+  const cryptoKey = await importAESKey(keyHex, 'decrypt');
+  return await decryptAESWithCryptoKey(encryptedBase64, cryptoKey, ivBase64);
 };
 
 // ============================================================================
@@ -494,12 +478,8 @@ export const decryptAES = async (
 // ============================================================================
 
 /**
- * Verileri şifrele ve API gönderimine hazırla
- * AES-256 GCM şifreleme yapılır (authenticated encryption - 2026 best practice)
- * 
- * @param data Şifrelenecek veriler
- * @param encryptionKey Master Key'den türetilmiş Encryption Key (256-bit hex)
- * @returns Promise<{...}> - Şifrelenmiş veriler ve IV (GCM authenticated)
+ * Verileri şifrele ve API gönderimine hazırla (Optimize edilmiş)
+ * Key sadece 1 kere import edilir, 5 kere kullanılır.
  */
 export const encryptDataForAPI = async (
   data: {
@@ -521,14 +501,17 @@ export const encryptDataForAPI = async (
   const iv = generateIV(); // 12 bytes for GCM
 
   try {
+    // 1. Key'i SADECE bir kere import et (Performans +++)
+    const cryptoKey = await importAESKey(encryptionKey, 'encrypt');
+
+    // 2. Hazır key ile şifrele
     return {
-      // AES-256 GCM şifreleme - authentication tag otomatik eklenir
-      encryptedName: await encryptAES(data.name, encryptionKey, iv),
-      encryptedUserName: await encryptAES(data.username, encryptionKey, iv),
-      encryptedPassword: await encryptAES(data.password, encryptionKey, iv),
-      encryptedDescription: await encryptAES(data.description || '', encryptionKey, iv),
-      encryptedWebSiteUrl: await encryptAES(data.websiteUrl || '', encryptionKey, iv),
-      iv: iv, // Veritabanına kaydedilir
+      encryptedName: await encryptAESWithCryptoKey(data.name, cryptoKey, iv),
+      encryptedUserName: await encryptAESWithCryptoKey(data.username, cryptoKey, iv),
+      encryptedPassword: await encryptAESWithCryptoKey(data.password, cryptoKey, iv),
+      encryptedDescription: await encryptAESWithCryptoKey(data.description || '', cryptoKey, iv),
+      encryptedWebSiteUrl: await encryptAESWithCryptoKey(data.websiteUrl || '', cryptoKey, iv),
+      iv: iv,
     };
   } catch (error) {
     console.error('Data encryption error:', error);
@@ -537,13 +520,8 @@ export const encryptDataForAPI = async (
 };
 
 /**
- * API'den gelen şifrelenmiş verileri çöz
- * AES-256 GCM decryption yapılır (authentication tag otomatik verify edilir)
- * 
- * @param data API'den gelen şifrelenmiş veriler
- * @param encryptionKey Master Key'den türetilmiş Encryption Key (256-bit hex)
- * @param iv Veritabanından gelen IV (Base64, 12 bytes)
- * @returns Promise<{...}> - Şifresi çözülmüş veriler (GCM authenticated!)
+ * API'den gelen şifrelenmiş verileri çöz (Optimize edilmiş)
+ * Key sadece 1 kere import edilir.
  */
 export const decryptDataFromAPI = async (
   data: {
@@ -563,16 +541,19 @@ export const decryptDataFromAPI = async (
   websiteUrl: string;
 }> => {
   try {
+    // 1. Key'i SADECE bir kere import et (Performans +++)
+    const cryptoKey = await importAESKey(encryptionKey, 'decrypt');
+
+    // 2. Hazır key ile çöz
     return {
-      // AES-256 GCM decryption - authentication tag otomatik verify edilir
-      name: await decryptAES(data.encryptedName, encryptionKey, iv),
-      username: await decryptAES(data.encryptedUserName, encryptionKey, iv),
-      password: await decryptAES(data.encryptedPassword, encryptionKey, iv),
-      description: await decryptAES(data.encryptedDescription, encryptionKey, iv),
-      websiteUrl: await decryptAES(data.encryptedWebSiteUrl, encryptionKey, iv),
+      name: await decryptAESWithCryptoKey(data.encryptedName, cryptoKey, iv),
+      username: await decryptAESWithCryptoKey(data.encryptedUserName, cryptoKey, iv),
+      password: await decryptAESWithCryptoKey(data.encryptedPassword, cryptoKey, iv),
+      description: await decryptAESWithCryptoKey(data.encryptedDescription, cryptoKey, iv),
+      websiteUrl: await decryptAESWithCryptoKey(data.encryptedWebSiteUrl, cryptoKey, iv),
     };
   } catch (error) {
-    console.error('Data decryption error:', error);
+    // console.error('Data decryption error', error); // Too noisy usually
     throw error;
   }
 };

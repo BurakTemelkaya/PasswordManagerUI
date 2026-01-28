@@ -40,7 +40,7 @@ interface EncryptedPassword {
 function hexToBuffer(hex: string): ArrayBuffer {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
   }
   return bytes.buffer;
 }
@@ -74,7 +74,7 @@ async function decryptAES(
 ): Promise<string> {
   try {
     if (!encryptedBase64) return '';
-    
+
     const keyBuffer = hexToBuffer(keyHex);
     const ivBuffer = base64ToBuffer(ivBase64);
     const encryptedBuffer = base64ToBuffer(encryptedBase64);
@@ -106,7 +106,7 @@ async function decryptPassword(encrypted: EncryptedPassword, encryptionKey: stri
     const username = await decryptAES(encrypted.encryptedUserName, encryptionKey, encrypted.iv);
     const password = await decryptAES(encrypted.encryptedPassword, encryptionKey, encrypted.iv);
     const websiteUrl = await decryptAES(encrypted.encryptedWebSiteUrl, encryptionKey, encrypted.iv);
-    
+
     return {
       id: encrypted.id,
       name,
@@ -128,7 +128,7 @@ async function decryptPassword(encrypted: EncryptedPassword, encryptionKey: stri
  * Refresh token ile yeni access token al
  */
 async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise<{ accessToken: string; refreshToken: string } | null> {
-  try {    
+  try {
     const response = await fetch(`${apiUrl}/Auth/RefreshToken`, {
       method: 'POST',
       headers: {
@@ -136,31 +136,31 @@ async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise
       },
       body: JSON.stringify({ refreshToken })
     });
-    
+
     if (!response.ok) {
       console.error('🔴 Refresh token başarısız:', response.status);
       return null;
     }
-    
+
     const data = await response.json();
-    
+
     // Yeni token'ları session storage'a kaydet
     if (data.accessToken?.token) {
       await chrome.storage.session.set({ authToken: data.accessToken.token });
-      await chrome.storage.local.set({ 
-        tokenExpiration: data.accessToken.expirationDate 
+      await chrome.storage.local.set({
+        tokenExpiration: data.accessToken.expirationDate
       });
       console.log('✅ Background: Access token yenilendi');
     }
-    
+
     if (data.refreshToken?.token) {
-      await chrome.storage.local.set({ 
+      await chrome.storage.local.set({
         refreshToken: data.refreshToken.token,
         refreshTokenExpiration: data.refreshToken.expirationDate
       });
       console.log('✅ Background: Refresh token yenilendi');
     }
-    
+
     return {
       accessToken: data.accessToken?.token,
       refreshToken: data.refreshToken?.token
@@ -181,15 +181,15 @@ async function fetchWithRefresh(url: string, token: string, apiUrl: string): Pro
       'Content-Type': 'application/json'
     }
   });
-  
+
   // 401 Unauthorized - refresh token dene
   if (response.status === 401) {
     const localData = await chrome.storage.local.get(['refreshToken']);
     const refreshToken = localData.refreshToken as string | undefined;
-    
+
     if (refreshToken) {
       const newTokens = await refreshAccessToken(refreshToken, apiUrl);
-      
+
       if (newTokens?.accessToken) {
         // Yeni token ile tekrar dene
         response = await fetch(url, {
@@ -201,7 +201,7 @@ async function fetchWithRefresh(url: string, token: string, apiUrl: string): Pro
       }
     }
   }
-  
+
   return response;
 }
 
@@ -209,22 +209,22 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
   try {
     // Get all passwords (yeni endpoint) - refresh token destekli
     const response = await fetchWithRefresh(`${apiUrl}/Password/GetAll`, token, apiUrl);
-    
+
     if (!response.ok) {
       console.error('API response not ok:', response.status);
-      
+
       // 401 hala devam ediyorsa oturumu sonlandır
       if (response.status === 401) {
         console.log('🔴 Token yenileme başarısız, oturum sonlandırılıyor...');
         await chrome.storage.session.remove(['authToken', 'encryptionKey']);
         await chrome.storage.local.remove(['refreshToken', 'refreshTokenExpiration', 'passwords']);
       }
-      
+
       throw new Error(`API error: ${response.status}`);
     }
-    
+
     const data = await response.json();
-    
+
     // Direkt array dönüyor
     return Array.isArray(data) ? data : (data.$values || []);
   } catch (error) {
@@ -241,31 +241,31 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
 function extractMainDomain(hostname: string): string {
   // www. prefix'ini kaldır
   let domain = hostname.replace(/^www\./, '');
-  
+
   // Domain parçalarını al
   const parts = domain.split('.');
-  
+
   // En az 2 parça varsa son 2'yi al (example.com)
   // Bazı TLD'ler 2 parçalı (co.uk, com.tr) ama basit tutuyoruz
   if (parts.length >= 2) {
     return parts.slice(-2).join('.');
   }
-  
+
   return domain;
 }
 
 function matchesHostname(websiteUrl: string, currentHostname: string): boolean {
   try {
     if (!websiteUrl) return false;
-    
+
     // URL'yi parse et
     const url = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`);
     const savedHostname = url.hostname;
-    
+
     // Ana domain'leri karşılaştır
     const savedDomain = extractMainDomain(savedHostname);
     const currentDomain = extractMainDomain(currentHostname);
-    
+
     // Domain eşleşmesi
     return savedDomain === currentDomain;
   } catch {
@@ -284,7 +284,7 @@ const loginTabs = new Set<number>();
 // ============================================
 // EXTENSION LIFECYCLE
 // ============================================
-chrome.runtime.onInstalled.addListener(() => {  
+chrome.runtime.onInstalled.addListener(() => {
   try {
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({
@@ -292,14 +292,14 @@ chrome.runtime.onInstalled.addListener(() => {
         title: '🔐 Parola Yöneticisi',
         contexts: ['all']
       });
-      
+
       chrome.contextMenus.create({
         id: 'pm-open',
         parentId: 'pm-main',
         title: 'Popup\'ı Aç',
         contexts: ['all']
       });
-      
+
       chrome.contextMenus.create({
         id: 'pm-fill',
         parentId: 'pm-main',
@@ -315,7 +315,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // ============================================
 // MESSAGE HANDLERS
 // ============================================
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {  
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Handle async operations
   (async () => {
     try {
@@ -323,21 +323,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'GET_PASSWORDS_FOR_SITE':
           await handleGetPasswordsForSite(request.hostname, sendResponse);
           break;
-          
+
         case 'AUTOFILL_PASSWORD':
           await handleAutofill(request);
           sendResponse({ success: true });
           break;
-          
+
         case 'LOGIN_FORM_DETECTED':
           handleLoginFormDetected(sender.tab?.id, request);
           sendResponse({ success: true });
           break;
-          
+
         case 'GET_CURRENT_TAB':
           await handleGetCurrentTab(sendResponse);
           break;
-          
+
         case 'OPEN_POPUP':
           try {
             await chrome.action.openPopup();
@@ -346,7 +346,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
           sendResponse({ success: true });
           break;
-          
+
         default:
           sendResponse({ success: false, message: 'Unknown message type' });
       }
@@ -355,7 +355,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: String(error) });
     }
   })();
-  
+
   return true; // Keep channel open for async
 });
 
@@ -365,30 +365,30 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
     // Local storage'dan kalıcı verileri al - artık parolalar da burada
     const localData = await chrome.storage.local.get(['apiUrl', 'passwords']);
-    
+
     const token = sessionData.authToken as string | undefined;
     const encryptionKey = sessionData.encryptionKey as string | undefined;
-    
+
     if (!token || !encryptionKey) {
       // Not authenticated
-      sendResponse({ 
-        success: false, 
+      sendResponse({
+        success: false,
         isAuthenticated: false,
-        passwords: [], 
-        message: 'Giriş yapılmamış' 
+        passwords: [],
+        message: 'Giriş yapılmamış'
       });
       return;
     }
-    
+
     // Önce local storage'dan parolaları kontrol et
     const cachedPasswords = localData.passwords as PasswordEntry[] | undefined;
-    
-    if (cachedPasswords && cachedPasswords.length > 0) {      
+
+    if (cachedPasswords && cachedPasswords.length > 0) {
       // Filter by hostname
-      const matchingPasswords = cachedPasswords.filter(pwd => 
+      const matchingPasswords = cachedPasswords.filter(pwd =>
         matchesHostname(pwd.websiteUrl, hostname)
       );
-      
+
       // If no matching, return all passwords
       let passwordsToReturn: PasswordEntry[];
       if (matchingPasswords.length > 0) {
@@ -397,20 +397,20 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
         passwordsToReturn = cachedPasswords.slice(0, 10);
       }
 
-      sendResponse({ 
-        success: true, 
+      sendResponse({
+        success: true,
         isAuthenticated: true,
         passwords: passwordsToReturn,
         matching: matchingPasswords.length
       });
       return;
     }
-    
+
     // Local'de yoksa API'den çek (sadece ilk seferde)
     console.log('🌐 API\'den parolalar çekiliyor...');
     const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
     const encryptedPasswords = await fetchPasswords(token, apiUrl);
-    
+
     // fetchPasswords içinde zaten 401 durumunda refresh token deneniyor
     // Eğer hala boşsa ve token geçersizse, oturum sonlandırılmış demektir
     if (encryptedPasswords.length === 0) {
@@ -418,35 +418,35 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       const sessionCheck = await chrome.storage.session.get(['authToken']);
       if (!sessionCheck.authToken) {
         // Token silindi, oturum sonlandırıldı
-        sendResponse({ 
-          success: false, 
+        sendResponse({
+          success: false,
           isAuthenticated: false,
-          passwords: [], 
-          message: 'Oturum süresi doldu' 
+          passwords: [],
+          message: 'Oturum süresi doldu'
         });
         return;
       }
     }
-    
+
     const decryptedPasswords: PasswordEntry[] = [];
-    
+
     for (const encrypted of encryptedPasswords) {
       const decrypted = await decryptPassword(encrypted, encryptionKey);
       if (decrypted) {
         decryptedPasswords.push(decrypted);
       }
     }
-    
+
     // Parolaları local storage'a kaydet (cache olarak)
     if (decryptedPasswords.length > 0) {
       await chrome.storage.local.set({ passwords: decryptedPasswords });
     }
-    
+
     // Filter by hostname
-    const matchingPasswords = decryptedPasswords.filter(pwd => 
+    const matchingPasswords = decryptedPasswords.filter(pwd =>
       matchesHostname(pwd.websiteUrl, hostname)
     );
-    
+
     // If no matching, return all passwords
     let passwordsToReturn: PasswordEntry[];
     if (matchingPasswords.length > 0) {
@@ -455,19 +455,19 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       passwordsToReturn = decryptedPasswords.slice(0, 10);
     }
 
-    sendResponse({ 
-      success: true, 
+    sendResponse({
+      success: true,
       isAuthenticated: true,
       passwords: passwordsToReturn,
       matching: matchingPasswords.length
     });
   } catch (error) {
     console.error('Get passwords error:', error);
-    sendResponse({ 
-      success: false, 
+    sendResponse({
+      success: false,
       isAuthenticated: true,
-      passwords: [], 
-      error: String(error) 
+      passwords: [],
+      error: String(error)
     });
   }
 }
@@ -475,7 +475,7 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
 async function handleAutofill(request: { username: string; password: string }) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (tab?.id) {
       try {
         await chrome.tabs.sendMessage(tab.id, {
@@ -489,7 +489,7 @@ async function handleAutofill(request: { username: string; password: string }) {
           target: { tabId: tab.id },
           files: ['content.js']
         });
-        
+
         setTimeout(async () => {
           await chrome.tabs.sendMessage(tab.id!, {
             type: 'AUTOFILL',
@@ -535,7 +535,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       chrome.tabs.create({ url: chrome.runtime.getURL('public/popup.html') });
     }
   }
-  
+
   if (info.menuItemId === 'pm-fill' && tab?.id) {
     chrome.action.openPopup();
   }

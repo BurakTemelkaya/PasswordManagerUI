@@ -11,7 +11,7 @@
   --pm-primary-light: rgba(13, 148, 136, 0.2);
   --pm-secondary: #06b6d4;
   --pm-accent: #14b8a6;
-  
+
   /* Status Colors */
   --pm-success: #10b981;
   --pm-success-bg: rgba(16, 185, 129, 0.15);
@@ -21,20 +21,20 @@
   --pm-danger-bg: rgba(239, 68, 68, 0.15);
   --pm-info: #06b6d4;
   --pm-info-bg: rgba(6, 182, 212, 0.15);
-  
+
   /* Dark Theme Colors - GitHub Dark style */
   --pm-bg-primary: #0d1117;
   --pm-bg-secondary: #161b22;
   --pm-bg-tertiary: #21262d;
   --pm-border: #30363d;
   --pm-border-light: #21262d;
-  
+
   /* Text Colors */
   --pm-text-primary: #f0f6fc;
   --pm-text-secondary: #8b949e;
   --pm-text-tertiary: #6e7681;
   --pm-text-inverse: #ffffff;
-  
+
   /* Spacing */
   --pm-space-xs: 4px;
   --pm-space-sm: 8px;
@@ -43,7 +43,7 @@
   --pm-space-xl: 20px;
   --pm-space-2xl: 24px;
   --pm-space-3xl: 32px;
-  
+
   /* Typography */
   --pm-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
   --pm-font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -53,20 +53,20 @@
   --pm-font-size-lg: 14px;
   --pm-font-size-xl: 16px;
   --pm-font-size-2xl: 18px;
-  
+
   /* Border Radius */
   --pm-radius-sm: 4px;
   --pm-radius-md: 6px;
   --pm-radius-lg: 8px;
   --pm-radius-xl: 12px;
   --pm-radius-full: 9999px;
-  
+
   /* Shadows */
   --pm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --pm-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
   --pm-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
   --pm-shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.16);
-  
+
   /* Transitions */
   --pm-transition-fast: 0.15s ease;
   --pm-transition: 0.2s ease;
@@ -93,7 +93,8 @@
   color: var(--pm-text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  /* overflow: hidden; */
+  /* Disabled to allow scrolling with bottom nav */
 }
 
 /* === Header === */
@@ -831,7 +832,9 @@ textarea.popup-form-input::placeholder,
 }
 
 @keyframes popup-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* === Auth Pages === */
@@ -1047,13 +1050,25 @@ textarea.popup-form-input::placeholder,
 
 /* === Animations === */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
