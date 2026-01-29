@@ -251,7 +251,7 @@ const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenera
   }
 
   return (
-    <div className="popup-page popup-dashboard" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '600px' }}>
+    <div className="popup-page popup-dashboard" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '600px', maxHeight: '600px' }}>
       {/* Header */}
       <header className="popup-header" style={{ padding: '12px 16px', justifyContent: 'center', flexShrink: 0 }}>
         <div className="popup-header-title" style={{ fontSize: '18px', fontWeight: '600' }}>🔐 Kasa</div>

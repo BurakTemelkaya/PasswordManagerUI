@@ -175,8 +175,9 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             kdfIterations: kdfParams.kdfIterations,
           });
 
-          // Local storage: Kalıcı veriler - kullanıcı adı hatırlansın
+          // Local storage: Kalıcı veriler - kullanıcı adı ve token hatırlansın
           await chrome.storage.local.set({
+            authToken: token, // KALI CI LIK
             userName: formData.userName,
             userId: userId,
             encryptionKeyCheck: encryptionKeyCheck, // Extension için de sakla

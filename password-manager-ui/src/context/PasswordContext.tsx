@@ -38,13 +38,82 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Kilitlendiğinde verileri temizle
+    // Kilitlendiğinde sadece decrypt edilmiş verileri temizle
+    // Şifreli veriler hafızada veya localStorage'da kalabilir (Smart Sync için)
     useEffect(() => {
         if (isLocked) {
-            setPasswords([]);
             setDecryptedPasswords(new Map());
+            // passwords state'ini temizlemiyoruz, unlock olunca kullanacağız
+        } else {
+            // Kilidi açılınca:
+            // 1. Eğer hafızada veya local'de password varsa decrypt et
+            // 2. Güncelleme kontrolü yap
+            if (passwords.length > 0) {
+                decryptCurrentPasswords();
+            } else {
+                // Hiç veri yoksa (ilk yükleme) local'den yüklemeyi dene
+                const cached = localStorage.getItem('cachedPasswords');
+                if (cached) {
+                    try {
+                        const parsedHeaders = JSON.parse(cached);
+                        setPasswords(parsedHeaders);
+                        // State güncellendiği için useEffect tekrar çalışacak (dependency'de passwords.length var mı? Eklemeliyiz)
+                        // Ancak decrypt'i burada çağıramayız çünkü state hemen güncellenmez.
+                        // Bu yüzden decryptCurrentPasswords'i dependency'e ekleyip orada çağıracağız.
+                    } catch (e) {
+                        fetchPasswords(true);
+                    }
+                } else {
+                    fetchPasswords(true);
+                }
+            }
+
+            // Güncelleme kontrolü
+            checkForUpdates(false);
         }
     }, [isLocked]);
+
+    // Passwords değiştiğinde ve kilit açıkken decrypt et
+    useEffect(() => {
+        if (!isLocked && passwords.length > 0 && decryptedPasswords.size === 0) {
+            decryptCurrentPasswords();
+        }
+    }, [passwords, isLocked]);
+
+    const decryptCurrentPasswords = async () => {
+        const encryptionKey = sessionStorage.getItem('encryptionKey');
+        if (!encryptionKey) return;
+
+        const decrypted = new Map<string, DecryptedData>();
+
+        await Promise.all(
+            passwords.map(async (pwd) => {
+                try {
+                    if (!pwd.iv) return;
+                    // Cache check (optimization could go here)
+                    const decryptedData = await decryptDataFromAPI(
+                        {
+                            encryptedName: pwd.encryptedName,
+                            encryptedUserName: pwd.encryptedUserName,
+                            encryptedPassword: pwd.encryptedPassword,
+                            encryptedDescription: pwd.encryptedDescription,
+                            encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
+                        },
+                        encryptionKey,
+                        pwd.iv
+                    );
+                    decrypted.set(pwd.id, {
+                        name: decryptedData.name,
+                        websiteUrl: decryptedData.websiteUrl,
+                        username: decryptedData.username,
+                    });
+                } catch (err: any) {
+                    console.error(`❌ Decrypt hatası (${pwd.id}):`, err.message || err);
+                }
+            })
+        );
+        setDecryptedPasswords(decrypted);
+    };
 
     const fetchPasswords = useCallback(async (force: boolean = false) => {
         // Eğer zaten veri varsa ve force değilse, çekme
@@ -54,10 +123,7 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
         if (isLocked) return;
 
         const encryptionKey = sessionStorage.getItem('encryptionKey');
-        if (!encryptionKey) {
-            // setError('Kasa kilitli'); // Opsiyonel, zaten isLocked bunu yönetiyor
-            return;
-        }
+        if (!encryptionKey) return;
 
         try {
             setLoading(true);
@@ -66,37 +132,10 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
             const passwordList = await getAllPasswords();
             setPasswords(passwordList);
 
-            // Şifreleri çöz
-            const decrypted = new Map<string, DecryptedData>();
-            await Promise.all(
-                passwordList.map(async (pwd) => {
-                    try {
-                        if (!pwd.iv) return;
-                        const decryptedData = await decryptDataFromAPI(
-                            {
-                                encryptedName: pwd.encryptedName,
-                                encryptedUserName: pwd.encryptedUserName,
-                                encryptedPassword: pwd.encryptedPassword,
-                                encryptedDescription: pwd.encryptedDescription,
-                                encryptedWebSiteUrl: pwd.encryptedWebSiteUrl,
-                            },
-                            encryptionKey,
-                            pwd.iv
-                        );
-                        decrypted.set(pwd.id, {
-                            name: decryptedData.name,
-                            websiteUrl: decryptedData.websiteUrl,
-                            username: decryptedData.username,
-                        });
-                    } catch (err: any) {
-                        console.error(`❌ Decrypt hatası (${pwd.id}):`, err.message || err);
-                    }
-                })
-            );
-            setDecryptedPasswords(decrypted);
+            // LocalStorage'a kaydet (Cache)
+            localStorage.setItem('cachedPasswords', JSON.stringify(passwordList));
 
             // Başarılı senkronizasyon zamanını kaydet (Server Saati)
-            // Bu sayede "silinmiş veri" durumunda yerel saatin geride kalmasını önleriz.
             try {
                 const serverDate = await getVaultLastUpdateDate();
                 if (serverDate) {
@@ -116,10 +155,14 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             setLoading(false);
         }
-    }, [isLocked, passwords.length]);
+    }, [isLocked]);
 
     const checkForUpdates = useCallback(async (manual: boolean = false) => {
         if (isLocked) return;
+
+        // Login olmamışsa (encryptionKey yoksa) server kontrolü yapma
+        const encryptionKey = sessionStorage.getItem('encryptionKey');
+        if (!encryptionKey) return;
 
         try {
             if (manual) setLoading(true);
@@ -159,17 +202,12 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (isLocked) return;
 
-        // İlk mount edildiğinde veri yoksa çek
-        if (passwords.length === 0) {
-            fetchPasswords();
-        }
-
         const intervalId = setInterval(() => {
             checkForUpdates(false);
         }, 5 * 60 * 1000);
 
         return () => clearInterval(intervalId);
-    }, [isLocked, checkForUpdates, fetchPasswords, passwords.length]);
+    }, [isLocked, checkForUpdates]);
 
     return (
         <PasswordContext.Provider value={{ passwords, decryptedPasswords, loading, error, fetchPasswords, checkForUpdates }}>

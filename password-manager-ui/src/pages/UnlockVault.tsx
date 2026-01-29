@@ -40,9 +40,11 @@ const UnlockVault = () => {
         window.location.href = '/login';
     };
 
+    const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
+
     return (
-        <div className="auth-container" style={{ background: 'rgba(0,0,0,0.85)' }}>
-            <div className="auth-box" style={{ maxWidth: '400px' }}>
+        <div className="auth-container" style={{ background: isExtension ? 'var(--bg-body)' : 'var(--bg-primary)' }}>
+            <div className="auth-box" style={{ maxWidth: '400px', width: '100%', borderRadius: isExtension ? '0' : '12px', boxShadow: isExtension ? 'none' : '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
                     <div style={{
                         width: '64px',

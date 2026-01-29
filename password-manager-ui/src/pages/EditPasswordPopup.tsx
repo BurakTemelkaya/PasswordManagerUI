@@ -35,7 +35,15 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
     try {
       setInitialLoading(true);
 
-      const encryptionKey = localStorage.getItem('encryptionKey');
+      let encryptionKey: string | null = null;
+      if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+        const result = await chrome.storage.session.get(['encryptionKey']) as { encryptionKey?: string };
+        encryptionKey = result.encryptionKey || null;
+      }
+      if (!encryptionKey) {
+        encryptionKey = sessionStorage.getItem('encryptionKey') || localStorage.getItem('encryptionKey');
+      }
+
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
         setInitialLoading(false);
@@ -43,7 +51,7 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
       }
 
       const password = await getPasswordById(id);
-      
+
       const decrypted = await decryptDataFromAPI(
         {
           encryptedName: password.encryptedName,
@@ -105,8 +113,15 @@ const EditPasswordPopup = ({ id, onSuccess, onCancel }: EditPasswordPopupProps) 
     try {
       setLoading(true);
 
-      const encryptionKey = localStorage.getItem('encryptionKey');
-      
+      let encryptionKey: string | null = null;
+      if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+        const result = await chrome.storage.session.get(['encryptionKey']) as { encryptionKey?: string };
+        encryptionKey = result.encryptionKey || null;
+      }
+      if (!encryptionKey) {
+        encryptionKey = sessionStorage.getItem('encryptionKey') || localStorage.getItem('encryptionKey');
+      }
+
       if (!encryptionKey) {
         setError('Encryption key bulunamadı. Lütfen yeniden giriş yapın.');
         return;

@@ -32,7 +32,21 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const checkLockStatus = () => {
-        const encryptionKey = sessionStorage.getItem('encryptionKey');
+        // Öncelik: sessionStorage
+        let encryptionKey = sessionStorage.getItem('encryptionKey');
+
+        // Eğer session'da yoksa ve "Tarayıcı kapandığında kilitleme" seçiliyse localStorage'dan bak
+        if (!encryptionKey) {
+            const lockOnClose = localStorage.getItem('lockOnBrowserClose') !== 'false'; // Default true
+            if (!lockOnClose) {
+                const persistentKey = localStorage.getItem('persistentEncryptionKey');
+                if (persistentKey) {
+                    encryptionKey = persistentKey;
+                    sessionStorage.setItem('encryptionKey', encryptionKey); // Session'a geri yükle
+                }
+            }
+        }
+
         const authToken = localStorage.getItem('authToken');
 
         // Eğer token var ama key yoksa -> Kilitli
@@ -47,7 +61,6 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     const lock = useCallback(() => {
         // Ayarları oku
         const action = localStorage.getItem('vaultAction') || 'lock';
-
         const authToken = localStorage.getItem('authToken');
 
         if (authToken) {
@@ -59,11 +72,11 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
                     chrome.storage.session?.remove(['authToken', 'encryptionKey']);
                     chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords']);
                 }
-                // Uygulamayı yenile veya yönlendir (Context içinde navigate zor olabilir, window.location kullan)
                 window.location.reload();
             } else {
                 // Sadece kilitle
                 sessionStorage.removeItem('encryptionKey');
+                localStorage.removeItem('persistentEncryptionKey'); // Persistent key'i de sil
 
                 // Extension için chrome.storage.session'dan da sil
                 if (typeof chrome !== 'undefined' && chrome.storage?.session) {
@@ -110,6 +123,13 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
 
             // Başarılı - Key'i session'a yaz
             sessionStorage.setItem('encryptionKey', encryptionKey);
+
+            // Eğer "Tarayıcı kapandığında kilitleme" (lockOnBrowserClose=false) ise key'i localStorage'a da yaz
+            const lockOnClose = localStorage.getItem('lockOnBrowserClose') !== 'false';
+            if (!lockOnClose) {
+                localStorage.setItem('persistentEncryptionKey', encryptionKey);
+            }
+
             setIsLocked(false);
             resetIdleTimer();
             return true;
@@ -174,9 +194,16 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const handleBeforeUnload = () => {
             // Kritik güvenlik: Master Key'i bellekten sil
-            // (sessionStorage aslında tab kapanınca silinir ama explicit olmak iyidir)
-            // Ayrıca state'i temizle
-            sessionStorage.removeItem('encryptionKey');
+            // Ancak "persistent" ayarı varsa silme (Browser Restart için)
+            // Varsayılan (lockOnBrowserClose=true): Siler
+
+            const lockOnClose = localStorage.getItem('lockOnBrowserClose') !== 'false';
+
+            if (lockOnClose) {
+                sessionStorage.removeItem('encryptionKey');
+                // Persistent key varsa onu da sil (Güvenlik önlemi)
+                localStorage.removeItem('persistentEncryptionKey');
+            }
             // NOT: Refresh token (localStorage) kalır.
         };
 

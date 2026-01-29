@@ -6,6 +6,7 @@ import { deriveMasterKeyWithKdf, deriveEncryptionKey } from '../helpers/encrypti
 import { importPasswords, exportPasswords, downloadFile, type ExportFormat, type ImportResult } from '../helpers/importExport';
 import { ApiError } from '../types';
 import '../styles/auth.css';
+import '../styles/popup.css';
 
 interface SettingsProps {
   onBack?: () => void;
@@ -44,6 +45,8 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
   // Security Settings
   const [vaultTimeout, setVaultTimeout] = useState<number>(5); // Default 5 mins
   const [vaultAction, setVaultAction] = useState<'lock' | 'logout'>('lock');
+  const [lockOnBrowserClose, setLockOnBrowserClose] = useState<boolean>(true);
+  const [lockOnSystemLock, setLockOnSystemLock] = useState<boolean>(false);
 
   // Import/Export
   const [importLoading, setImportLoading] = useState(false);
@@ -69,6 +72,12 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
     const savedAction = localStorage.getItem('vaultAction');
     if (savedAction === 'lock' || savedAction === 'logout') setVaultAction(savedAction);
 
+    const savedLockOnClose = localStorage.getItem('lockOnBrowserClose');
+    if (savedLockOnClose !== null) setLockOnBrowserClose(savedLockOnClose === 'true');
+
+    const savedLockOnSystem = localStorage.getItem('lockOnSystemLock');
+    if (savedLockOnSystem !== null) setLockOnSystemLock(savedLockOnSystem === 'true');
+
     setUserName(storedUserName);
     setEncryptionKey(storedEncryptionKey);
     setKdfSalt(storedKdfSalt);
@@ -84,12 +93,16 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
   const saveSecuritySettings = () => {
     localStorage.setItem('vaultTimeout', vaultTimeout.toString());
     localStorage.setItem('vaultAction', vaultAction);
+    localStorage.setItem('lockOnBrowserClose', String(lockOnBrowserClose));
+    localStorage.setItem('lockOnSystemLock', String(lockOnSystemLock));
 
     // Extension için de sync et (chrome.storage)
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.set({
         vaultTimeout: vaultTimeout,
-        vaultAction: vaultAction
+        vaultAction: vaultAction,
+        lockOnBrowserClose: lockOnBrowserClose,
+        lockOnSystemLock: lockOnSystemLock
       });
     }
 
@@ -306,8 +319,10 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
     }
   };
 
+  const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
+
   return (
-    <div className="popup-page" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '600px' }}>
+    <div className={isExtension ? 'popup-page popup-dashboard' : 'page-container'} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: isExtension ? '600px' : 'auto', maxHeight: isExtension ? '600px' : '100%' }}>
       <header className="popup-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '4px 0' }}>
           <button onClick={handleBack} className="btn-ghost" style={{ fontSize: '12px', padding: '4px 8px' }}>
@@ -323,7 +338,15 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
         </div>
 
         {/* TAB MENU */}
-        <div className="settings-tabs" style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', marginTop: '4px' }}>
+        <div className="settings-tabs" style={{
+          display: 'flex',
+          gap: '4px',
+          background: 'var(--bg-input)',
+          padding: '4px',
+          borderRadius: '8px',
+          marginTop: '4px',
+          border: '1px solid var(--border-color)'
+        }}>
           {(['general', 'security', 'import-export'] as TabType[]).map((tab) => (
             <button
               key={tab}
@@ -331,14 +354,15 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
               className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
               style={{
                 flex: 1,
-                padding: '6px',
+                padding: '8px',
                 borderRadius: '6px',
                 border: 'none',
-                background: activeTab === tab ? 'var(--bg-card)' : 'transparent',
-                color: activeTab === tab ? 'var(--pm-primary)' : 'var(--pm-text-secondary)',
+                background: activeTab === tab ? 'var(--primary-color)' : 'transparent',
+                color: activeTab === tab ? 'white' : 'var(--text-secondary)',
                 cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: activeTab === tab ? '600' : 'normal'
+                fontSize: '13px',
+                fontWeight: '600',
+                transition: 'all 0.2s ease'
               }}
             >
               {tab === 'import-export' ? 'Veri' : tab === 'general' ? 'Genel' : 'Güvenlik'}
@@ -347,16 +371,24 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
         </div>
       </header>
 
-      <main style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-        <div className="form-container" style={{ maxWidth: '500px', margin: '0 auto' }}>
+      <main style={{ flex: 1, overflow: 'auto', padding: isExtension ? '0' : '16px' }}>
+        <div className="form-container" style={{
+          maxWidth: isExtension ? '100%' : '500px',
+          margin: '0 auto',
+          minHeight: '100%',
+        }}>
 
           {/* COMMON ALERTS */}
-          {error && <div className="alert alert-error">{error}</div>}
-          {success && <div className="alert alert-success">✅ {success}</div>}
+          {error && <div className="alert alert-error" style={{ margin: '16px 16px 0 16px' }}>{error}</div>}
+          {success && <div className="alert alert-success" style={{ margin: '16px 16px 0 16px' }}>✅ {success}</div>}
 
           {/* GENERAL TAB */}
           {activeTab === 'general' && (
-            <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
+            <div className={`tab-content ${!isExtension ? 'card' : ''}`} style={{
+              padding: '24px',
+              borderRadius: isExtension ? '0' : '12px',
+              background: isExtension ? 'transparent' : 'var(--bg-card)'
+            }}>
               <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
                 🔐 Master Password Değiştir
               </h2>
@@ -424,7 +456,11 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
 
           {/* SECURITY TAB */}
           {activeTab === 'security' && (
-            <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
+            <div className={`tab-content ${!isExtension ? 'card' : ''}`} style={{
+              padding: '24px',
+              borderRadius: isExtension ? '0' : '12px',
+              background: isExtension ? 'transparent' : 'var(--bg-card)'
+            }}>
               <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
                 🛡️ Kasa Güvenlik Ayarları
               </h2>
@@ -462,6 +498,25 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
                 </select>
               </div>
 
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={lockOnBrowserClose}
+                    onChange={(e) => setLockOnBrowserClose(e.target.checked)}
+                  />
+                  Tarayıcı Kapandığında Kilitle (Önerilen)
+                </label>
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', opacity: 0.7 }}>
+                  <input
+                    type="checkbox"
+                    checked={lockOnSystemLock}
+                    onChange={(e) => setLockOnSystemLock(e.target.checked)}
+                  />
+                  Sistem Kilitlendiğinde Kilitle (Deneysel)
+                </label>
+              </div>
+
               <button
                 onClick={saveSecuritySettings}
                 className="btn btn-primary"
@@ -474,7 +529,11 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
 
           {/* IMPORT/EXPORT TAB */}
           {activeTab === 'import-export' && (
-            <div className="card" style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-card)' }}>
+            <div className={`tab-content ${!isExtension ? 'card' : ''}`} style={{
+              padding: '24px',
+              borderRadius: isExtension ? '0' : '12px',
+              background: isExtension ? 'transparent' : 'var(--bg-card)' // height removed
+            }}>
               <h2 style={{ marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
                 📦 Import / Export
               </h2>
@@ -566,7 +625,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
         flexShrink: 0
       }}>
         <button
-          onClick={() => onDashboard?.()}
+          onClick={() => onDashboard ? onDashboard() : navigate('/dashboard')}
           style={{
             flex: 1,
             display: 'flex',
@@ -575,7 +634,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
             gap: '2px',
             border: 'none',
             background: 'transparent',
-            color: 'var(--pm-text-secondary)',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: '6px 4px',
             fontSize: '10px'
@@ -585,7 +644,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
           <span>Kasa</span>
         </button>
         <button
-          onClick={() => onGenerator?.()}
+          onClick={() => onGenerator ? onGenerator() : navigate('/generator')}
           style={{
             flex: 1,
             display: 'flex',
@@ -594,7 +653,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
             gap: '2px',
             border: 'none',
             background: 'transparent',
-            color: 'var(--pm-text-secondary)',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: '6px 4px',
             fontSize: '10px'
@@ -612,7 +671,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
             gap: '2px',
             border: 'none',
             background: 'transparent',
-            color: 'var(--pm-primary)',
+            color: 'var(--primary-color)',
             cursor: 'pointer',
             padding: '6px 4px',
             fontSize: '10px'
@@ -636,7 +695,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
             gap: '2px',
             border: 'none',
             background: 'transparent',
-            color: 'var(--pm-text-secondary)',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: '6px 4px',
             fontSize: '10px'

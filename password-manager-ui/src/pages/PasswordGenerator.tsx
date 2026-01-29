@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useVaultLock } from '../context/VaultLockContext';
 import '../styles/auth.css';
+import '../styles/popup.css';
 
 interface PasswordGeneratorProps {
     onBack?: () => void;
@@ -22,6 +23,8 @@ interface GeneratorOptions {
 
 const PasswordGenerator = ({ onBack, onDashboard, onSettings, onGenerate }: PasswordGeneratorProps) => {
     const { lock } = useVaultLock();
+    const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id; // Extension kontrolü
+
     // Default Options
     const [options, setOptions] = useState<GeneratorOptions>({
         length: 16,
@@ -131,15 +134,27 @@ const PasswordGenerator = ({ onBack, onDashboard, onSettings, onGenerate }: Pass
     };
 
     return (
-        <div className="popup-page popup-dashboard" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '600px' }}>
+        <div className="popup-page popup-dashboard" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '600px', maxHeight: '600px' }}>
             {/* Header */}
             <header className="popup-header" style={{ padding: '12px 16px', justifyContent: 'center', flexShrink: 0 }}>
                 <div className="popup-header-title" style={{ fontSize: '18px', fontWeight: '600' }}>🎲 Parola Üretici</div>
             </header>
 
             {/* Scrollable Content Wrapper */}
-            <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', padding: '16px' }}>
-                <div className="card" style={{ padding: '24px', background: 'var(--bg-card)', borderRadius: '12px' }}>
+            <div style={{
+                flex: 1,
+                overflow: 'auto',
+                padding: isExtension ? '0' : '16px',
+                display: isExtension ? 'flex' : 'block',
+                flexDirection: 'column'
+            }}>
+                <div className={!isExtension ? 'card' : ''} style={{
+                    padding: '24px',
+                    background: isExtension ? 'transparent' : 'var(--bg-card)',
+                    borderRadius: isExtension ? '0' : '12px',
+                    width: '100%',
+                    margin: isExtension ? 'auto 0' : '0'
+                }}>
 
                     {/* Display Area */}
                     <div style={{
@@ -150,7 +165,9 @@ const PasswordGenerator = ({ onBack, onDashboard, onSettings, onGenerate }: Pass
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        border: `1px solid ${getStrengthColor()}`
+                        border: `1px solid ${getStrengthColor()}`,
+                        maxHeight: '120px',
+                        overflowY: 'auto'
                     }}>
                         <span style={{
                             fontSize: '18px',
