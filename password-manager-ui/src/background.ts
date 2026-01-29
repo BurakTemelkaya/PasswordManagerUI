@@ -364,12 +364,39 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     // Session storage'dan hassas verileri al (tarayıcı kapanınca silinir)
     const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
     // Local storage'dan kalıcı verileri al - artık parolalar da burada
-    const localData = await chrome.storage.local.get(['apiUrl', 'passwords']);
+    const localData = await chrome.storage.local.get(['apiUrl', 'passwords', 'persistentEncryptionKey', 'refreshToken']);
 
-    const token = sessionData.authToken as string | undefined;
-    const encryptionKey = sessionData.encryptionKey as string | undefined;
+    let token = sessionData.authToken as string | undefined;
+    let encryptionKey = sessionData.encryptionKey as string | undefined;
+
+    console.log('🔍 Background Auth Check:', {
+      hasSessionToken: !!token,
+      hasSessionKey: !!encryptionKey,
+      hasPersistentKey: !!localData.persistentEncryptionKey,
+      hasRefreshToken: !!localData.refreshToken
+    });
+
+    // 1. Encryption Key yoksa ve Persistent Key varsa (Tarayıcı yeniden başlatıldıysa)
+    if (!encryptionKey && localData.persistentEncryptionKey) {
+      encryptionKey = localData.persistentEncryptionKey as string;
+      // Session'a geri yükle
+      await chrome.storage.session.set({ encryptionKey });
+      console.log('🔓 Persistent key ile kilit açıldı (Background)');
+    }
+
+    // 2. Token yoksa ve Refresh Token varsa (Tarayıcı yeniden başlatıldıysa)
+    if (!token && localData.refreshToken) {
+      console.log('🔄 Token session\'da yok, refresh deneniyor...');
+      const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
+      const newTokens = await refreshAccessToken(localData.refreshToken as string, apiUrl);
+      if (newTokens?.accessToken) {
+        token = newTokens.accessToken;
+        // refreshAccessToken fonksiyonu session'a kaydediyor zaten
+      }
+    }
 
     if (!token || !encryptionKey) {
+      console.warn('❌ Auth failed. Token:', !!token, 'Key:', !!encryptionKey);
       // Not authenticated
       sendResponse({
         success: false,

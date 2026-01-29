@@ -49,12 +49,42 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
 
         const authToken = localStorage.getItem('authToken');
 
+        // MIGRATION: Ensure persistent key is in chrome.storage.local if user has it in localStorage
+        const lockOnClose = localStorage.getItem('lockOnBrowserClose') !== 'false';
+        if (!lockOnClose) {
+            const persistentKey = localStorage.getItem('persistentEncryptionKey');
+            if (persistentKey && typeof chrome !== 'undefined' && chrome.storage?.local) {
+                chrome.storage.local.get(['persistentEncryptionKey']).then((data) => {
+                    if (!data.persistentEncryptionKey) {
+                        console.log('🔄 Migrating persistent key to chrome.storage.local');
+                        chrome.storage.local.set({ persistentEncryptionKey: persistentKey });
+                    }
+                });
+            }
+        }
+
         // Eğer token var ama key yoksa -> Kilitli
         // Eğer token yoksa -> Zaten login değil (kilitli değil ama login gerekli)
         if (authToken && !encryptionKey) {
             setIsLocked(true);
+            // Ensure background knows we are locked/missing key
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                chrome.storage.session.remove(['encryptionKey']);
+            }
         } else {
             setIsLocked(false);
+
+            // Sync to chrome.storage.session for background script
+            // Bu kısım EKLENDİ: Popup açıldığında background script'in haberi olsun
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                const syncData: any = {};
+                if (encryptionKey) syncData.encryptionKey = encryptionKey;
+                if (authToken) syncData.authToken = authToken;
+
+                if (Object.keys(syncData).length > 0) {
+                    chrome.storage.session.set(syncData).catch(err => console.warn('Storage sync failed:', err));
+                }
+            }
         }
     };
 
@@ -81,6 +111,11 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
                 // Extension için chrome.storage.session'dan da sil
                 if (typeof chrome !== 'undefined' && chrome.storage?.session) {
                     chrome.storage.session.remove(['encryptionKey']);
+                }
+
+                // Chrome local storage'dan da sil (Varsa)
+                if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                    chrome.storage.local.remove(['persistentEncryptionKey']);
                 }
 
                 setIsLocked(true);
@@ -124,10 +159,19 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
             // Başarılı - Key'i session'a yaz
             sessionStorage.setItem('encryptionKey', encryptionKey);
 
+            // Extension için chrome.storage.session'a da yaz (Background script için gerekli)
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                chrome.storage.session.set({ encryptionKey }).catch(err => console.warn('Extension storage sync failed:', err));
+            }
+
             // Eğer "Tarayıcı kapandığında kilitleme" (lockOnBrowserClose=false) ise key'i localStorage'a da yaz
             const lockOnClose = localStorage.getItem('lockOnBrowserClose') !== 'false';
             if (!lockOnClose) {
                 localStorage.setItem('persistentEncryptionKey', encryptionKey);
+                // Background script için chrome.storage.local'a da yaz
+                if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                    chrome.storage.local.set({ persistentEncryptionKey: encryptionKey });
+                }
             }
 
             setIsLocked(false);

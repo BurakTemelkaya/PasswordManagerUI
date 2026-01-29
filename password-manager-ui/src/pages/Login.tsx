@@ -214,79 +214,108 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
     }
   };
 
-  return (
-    <div className="auth-container">
-      <div className="auth-box">
-        <h1>Giriş Yap</h1>
-        {successMessage && <div className="alert alert-success">{successMessage}</div>}
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="userName">Kullanıcı Adı</label>
-            <input
-              id="userName"
-              type="text"
-              name="userName"
-              value={formData.userName}
-              onChange={handleChange}
-              placeholder="Kullanıcı adınızı girin"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="masterPassword">Master Parola</label>
-            <input
-              id="masterPassword"
-              type="password"
-              name="masterPassword"
-              value={formData.masterPassword}
-              onChange={handleChange}
-              placeholder="Master parolayı girin"
-              required
-            />
-            <small style={{ color: '#999', display: 'block', marginTop: '4px' }}>
-              Master Parola asla sunucuya gönderilmez. Verilerin şifresini çözmek için kullanılır.
-            </small>
-          </div>
-          <div className="form-group">
-            <label htmlFor="authenticatorCode">2FA Kodu (İsteğe bağlı)</label>
-            <input
-              id="authenticatorCode"
-              type="text"
-              name="authenticatorCode"
-              value={formData.authenticatorCode || ''}
-              onChange={handleChange}
-              placeholder="6 haneli kodu girin"
-              maxLength={6}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-          </button>
-        </form>
-        <div className="auth-footer">
-          Hesabınız yok mu?{' '}
-          {onRegister ? (
-            <button onClick={onRegister} className="btn-link">
-              Kayıt ol
-            </button>
-          ) : (
-            <Link to="/register">Kayıt ol</Link>
-          )}
-        </div>
+  const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id && window.location.protocol === 'chrome-extension:';
 
-        {/* Extension Download Link - sadece web'de göster */}
-        {!onLoginSuccess && (
-          <div className="auth-footer" style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-            <span style={{ marginRight: '8px' }}>🔐</span>
-            <Link to="/download" style={{ color: '#60a5fa' }}>
-              Tarayıcı eklentisini indir
-            </Link>
+  return (
+
+    <div className={`auth-container ${!isExtension ? 'web-mode' : ''}`}>
+
+      {/* Wrapper for split layout */}
+      <div className="auth-content-wrapper">
+
+        {/* External Header (Web Mode) */}
+        {!isExtension && (
+          <div className="auth-header-external">
+            <div className="auth-header-logo">
+              🛡️
+            </div>
+            <h1 className="auth-header-title">Giriş Yap</h1>
+            <div className="auth-header-subtitle">
+              Devam etmek için hesabınıza giriş yapın
+            </div>
           </div>
         )}
+
+        {/* The Card */}
+        <div className="auth-box">
+
+          {/* Extension Mode Header */}
+          {isExtension && (
+            <h1 style={{ marginBottom: '24px' }}>Giriş Yap</h1>
+          )}
+
+          {successMessage && <div className="alert alert-success">{successMessage}</div>}
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="userName">Kullanıcı Adı</label>
+              <input
+                id="userName"
+                type="text"
+                name="userName"
+                value={formData.userName}
+                onChange={handleChange}
+                placeholder="Kullanıcı adınızı girin"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="masterPassword">Master Parola</label>
+              <input
+                id="masterPassword"
+                type="password"
+                name="masterPassword"
+                value={formData.masterPassword}
+                onChange={handleChange}
+                placeholder="Master parolayı girin"
+                required
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                Master Parola asla sunucuya gönderilmez. Verilerin şifresini çözmek için kullanılır.
+              </small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="authenticatorCode">2FA Kodu (İsteğe bağlı)</label>
+              <input
+                id="authenticatorCode"
+                type="text"
+                name="authenticatorCode"
+                value={formData.authenticatorCode || ''}
+                onChange={handleChange}
+                placeholder="6 haneli kodu girin"
+                maxLength={6}
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+            </button>
+          </form>
+          <div className="auth-footer">
+            Hesabınız yok mu?{' '}
+            {onRegister ? (
+              <button onClick={onRegister} className="btn-link">
+                Kayıt ol
+              </button>
+            ) : (
+              <Link to="/register" className="btn-link">Kayıt ol</Link>
+            )}
+          </div>
+
+          {/* Extension Download Link - sadece web'de göster */}
+          {!onLoginSuccess && !isExtension && (
+            <div className="auth-footer" style={{ marginTop: '12px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <span style={{ marginRight: '8px' }}>🔐</span>
+              <Link to="/download" style={{ color: 'var(--primary-light)' }}>
+                Tarayıcı eklentisini indir
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
+
 };
 
 export default Login;

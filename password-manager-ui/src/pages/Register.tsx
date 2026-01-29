@@ -59,8 +59,8 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
 
       // 2. Salt ile MasterKey türet
       const masterKey = await deriveMasterKeyWithKdf(
-        formData.masterPassword, 
-        kdfSalt, 
+        formData.masterPassword,
+        kdfSalt,
         kdfIterations
       );
 
@@ -117,7 +117,7 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
       }
     } catch (err: unknown) {
       console.error('❌ Register hatası:', err);
-      
+
       // ApiError ise kullanıcı dostu mesajı göster
       if (err instanceof ApiError) {
         setError(err.getUserMessage());
@@ -131,83 +131,112 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
     }
   };
 
+  const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id && window.location.protocol === 'chrome-extension:';
+
   return (
-    <div className="auth-container">
-      <div className="auth-box">
-        <h1>Kayıt Ol</h1>
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="userName">Kullanıcı Adı</label>
-            <input
-              id="userName"
-              type="text"
-              name="userName"
-              value={formData.userName}
-              onChange={handleChange}
-              placeholder="Kullanıcı adını girin"
-              required
-            />
+
+    <div className={`auth-container ${!isExtension ? 'web-mode' : ''}`}>
+
+      {/* Wrapper for split layout */}
+      <div className="auth-content-wrapper">
+
+        {/* External Header (Web Mode) */}
+        {!isExtension && (
+          <div className="auth-header-external">
+            <div className="auth-header-logo">
+              📝
+            </div>
+            <h1 className="auth-header-title">Hesap Oluştur</h1>
+            <div className="auth-header-subtitle">
+              Güvenli şifre yöneticisine hemen katılın
+            </div>
           </div>
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="example@email.com"
-              required
-            />
-            <small style={{ color: '#999', display: 'block', marginTop: '4px' }}>
-              Email, hesap kurtarma ve iki faktörlü kimlik doğrulama için kullanılır
-            </small>
-          </div>
-          <div className="form-group">
-            <label htmlFor="masterPassword">Master Parola</label>
-            <input
-              id="masterPassword"
-              type="password"
-              name="masterPassword"
-              value={formData.masterPassword}
-              onChange={handleChange}
-              placeholder="Master parolayı girin (min 12 karakter)"
-              required
-            />
-            <small style={{ color: '#999', display: 'block', marginTop: '4px' }}>
-              Bunu saklamalısınız! Verilerin şifresini çözmek için kullanılır. Sunucuya asla gönderilmez.
-            </small>
-          </div>
-          <div className="form-group">
-            <label htmlFor="confirmMasterPassword">Master Parolayı Onayla</label>
-            <input
-              id="confirmMasterPassword"
-              type="password"
-              name="confirmMasterPassword"
-              value={formData.confirmMasterPassword}
-              onChange={handleChange}
-              placeholder="Master parolayı tekrar girin"
-              required
-            />
-          </div>
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
-          </button>
-        </form>
-        <div className="auth-footer">
-          Zaten hesabınız var mı?{' '}
-          {onBackToLogin ? (
-            <button onClick={onBackToLogin} className="btn-link">
-              Giriş yap
-            </button>
-          ) : (
-            <Link to="/login">Giriş yap</Link>
+        )}
+
+        {/* The Card */}
+        <div className="auth-box">
+
+          {/* Extension Mode Header */}
+          {isExtension && (
+            <h1 style={{ marginBottom: '24px' }}>Kayıt Ol</h1>
           )}
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="userName">Kullanıcı Adı</label>
+              <input
+                id="userName"
+                type="text"
+                name="userName"
+                value={formData.userName}
+                onChange={handleChange}
+                placeholder="Kullanıcı adını girin"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="example@email.com"
+                required
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                Email, hesap kurtarma ve iki faktörlü kimlik doğrulama için kullanılır
+              </small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="masterPassword">Master Parola</label>
+              <input
+                id="masterPassword"
+                type="password"
+                name="masterPassword"
+                value={formData.masterPassword}
+                onChange={handleChange}
+                placeholder="Master parolayı girin (min 12 karakter)"
+                required
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '4px' }}>
+                Bunu saklamalısınız! Verilerin şifresini çözmek için kullanılır. Sunucuya asla gönderilmez.
+              </small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="confirmMasterPassword">Master Parolayı Onayla</label>
+              <input
+                id="confirmMasterPassword"
+                type="password"
+                name="confirmMasterPassword"
+                value={formData.confirmMasterPassword}
+                onChange={handleChange}
+                placeholder="Master parolayı tekrar girin"
+                required
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+              {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
+            </button>
+          </form>
+          <div className="auth-footer">
+            Zaten hesabınız var mı?{' '}
+            {onBackToLogin ? (
+              <button onClick={onBackToLogin} className="btn-link">
+                Giriş yap
+              </button>
+            ) : (
+              <Link to="/login" className="btn-link">Giriş yap</Link>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
+
 };
 
 export default Register;

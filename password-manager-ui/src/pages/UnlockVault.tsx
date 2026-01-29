@@ -40,74 +40,95 @@ const UnlockVault = () => {
         window.location.href = '/login';
     };
 
-    const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id;
+    const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id && window.location.protocol === 'chrome-extension:';
+
 
     return (
-        <div className="auth-container" style={{ background: isExtension ? 'var(--bg-body)' : 'var(--bg-primary)' }}>
-            <div className="auth-box" style={{ maxWidth: '400px', width: '100%', borderRadius: isExtension ? '0' : '12px', boxShadow: isExtension ? 'none' : '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-                    <div style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '50%',
-                        background: '#3b82f6',
-                        color: 'white',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '24px',
-                        fontWeight: 600,
-                        marginBottom: '16px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                    }}>
-                        {username ? username.substring(0, 2).toUpperCase() : '🔒'}
+        <div className={`auth-container ${!isExtension ? 'web-mode' : ''}`}>
+
+            {/* Wrapper for split layout */}
+            <div className="auth-content-wrapper">
+
+                {/* External Header (Web Mode Only) */}
+                {!isExtension && (
+                    <div className="auth-header-external">
+                        <div className="auth-header-logo">
+                            🔒
+                        </div>
+                        <h1 className="auth-header-title">Kasa Kilitli</h1>
+                        {username && (
+                            <div className="auth-header-subtitle">
+                                <b>{username}</b>
+                            </div>
+                        )}
                     </div>
-                    {username ? (
-                        <>
-                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{username}</h3>
-                            <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0 0' }}>Kasa Kilitli</p>
-                        </>
-                    ) : (
-                        <h3 style={{ margin: 0 }}>Kasa Kilitli</h3>
+                )}
+
+                <div className="auth-box">
+                    {/* Extension Mode Header (Inside box) */}
+                    {isExtension && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
+                            <div style={{
+                                width: '56px',
+                                height: '56px',
+                                borderRadius: '50%',
+                                background: 'var(--primary)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '24px',
+                                marginBottom: '12px'
+                            }}>
+                                🔒
+                            </div>
+                            {username ? (
+                                <>
+                                    <h3 style={{ margin: 0, fontSize: '16px' }}>{username}</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '4px 0 0 0' }}>Kasa Kilitli</p>
+                                </>
+                            ) : (
+                                <h3 style={{ margin: 0 }}>Kasa Kilitli</h3>
+                            )}
+                        </div>
                     )}
-                </div>
 
-                {!username && <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <p style={{ color: 'var(--text-muted)' }}>
-                        Devam etmek için Master Parolanızı girin.
-                    </p>
-                </div>}
+                    {!username && <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        <p style={{ color: 'var(--text-secondary)' }}>
+                            Devam etmek için Master Parolanızı girin.
+                        </p>
+                    </div>}
 
-                {error && <div className="alert alert-error">{error}</div>}
+                    {error && <div className="alert alert-error">{error}</div>}
 
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label htmlFor="masterPassword">Master Parola</label>
-                        <input
-                            id="masterPassword"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Master parolanızı girin"
-                            required
-                            autoFocus
-                            className="input"
-                        />
+                    <form onSubmit={handleSubmit}>
+                        <div className="form-group">
+                            <label htmlFor="masterPassword">Master Parola</label>
+                            <input
+                                id="masterPassword"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Giriş yapmak için parolanızı girin"
+                                required
+                                autoFocus
+                            />
+                        </div>
+
+                        <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                            {loading ? 'Doğrulanıyor...' : 'Kilidi Aç'}
+                        </button>
+                    </form>
+
+                    <div className="auth-footer">
+                        <button
+                            onClick={handleLogout}
+                            className="btn-link"
+                            style={{ color: 'var(--text-secondary)' }}
+                        >
+                            Farklı bir hesapla giriş yap
+                        </button>
                     </div>
-
-                    <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-                        {loading ? 'Açılıyor...' : 'Kasayı Aç'}
-                    </button>
-                </form>
-
-                <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                    <button
-                        onClick={handleLogout}
-                        className="btn-link"
-                        style={{ fontSize: '14px', color: 'var(--text-muted)' }}
-                    >
-                        Farklı bir hesapla giriş yap
-                    </button>
                 </div>
             </div>
         </div>
