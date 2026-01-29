@@ -1,1 +1,0 @@
-const e={app:{name:"Password Manager",debug:!1,environment:"extension"},api:{baseURL:"https://localhost:7051/api",timeout:parseInt("30000",10)},encryption:{key:"default-key-change-me"}};export{e as c};

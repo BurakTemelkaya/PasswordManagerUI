@@ -6,7 +6,7 @@ import mkcert from 'vite-plugin-mkcert'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Extension build mi?
-  const isExtensionBuild = mode === 'extension';
+  const isExtensionBuild = mode === 'extension' || mode === 'extension-dev';
 
   // Web sitesi için basit config
   if (!isExtensionBuild) {

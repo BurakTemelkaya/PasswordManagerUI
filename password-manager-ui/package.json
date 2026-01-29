@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build --outDir dist && npm run release:extension",
     "build:web": "tsc -b && vite build --outDir dist",
     "build:extension": "tsc -b && vite build --mode extension --outDir dist-extension",
+    "build:extension:dev": "tsc -b && vite build --mode extension-dev --outDir dist-extension",
     "build:extension:prod": "tsc -b && vite build --mode extension --outDir dist-extension",
     "pack:extension": "cd dist-extension && powershell Remove-Item -Path public-extension -Recurse -Force -ErrorAction SilentlyContinue; powershell Compress-Archive -Force -Path * -DestinationPath ../public/password-manager-extension.zip && cd ..",
     "release:extension": "npm run build:extension:prod && npm run pack:extension",
