@@ -396,13 +396,28 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       }
     }
 
-    if (!token || !encryptionKey) {
-      // Not authenticated
+    // Durum kontrolü: Token var mı? Encryption Key var mı?
+    const hasToken = !!token;
+    const hasKey = !!encryptionKey;
+
+    if (!hasToken) {
+      // Hiç giriş yapılmamış
       sendResponse({
         success: false,
         isAuthenticated: false,
         passwords: [],
         message: 'Giriş yapılmamış'
+      });
+      return;
+    }
+
+    if (!hasKey) {
+      // Giriş yapılmış ama kasa kilitli
+      sendResponse({
+        success: false,
+        isAuthenticated: false, // UI'da "kilit aç" gösterilsin
+        passwords: [],
+        message: 'Kasa kilitli'
       });
       return;
     }
@@ -415,7 +430,7 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     if (!encryptedPasswords || encryptedPasswords.length === 0) {
       console.log('🌐 API\'den parolalar çekiliyor...');
       const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
-      const fetched = await fetchPasswords(token, apiUrl);
+      const fetched = await fetchPasswords(token as string, apiUrl);
 
       if (fetched) {
         encryptedPasswords = fetched;

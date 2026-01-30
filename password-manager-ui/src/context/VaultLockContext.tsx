@@ -142,18 +142,13 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
             // --- SAVE KEY LOGIC ---
             sessionStorage.setItem('encryptionKey', encryptionKey);
 
-            const vaultTimeout = parseInt(localStorage.getItem('vaultTimeout') || '5', 10);
-
-            // CASE: "On Restart" (-1) -> Save to chrome.storage.session
-            // Bu sayede popup kapanınca silinmez ama browser kapanınca silinir.
-            if (vaultTimeout === -1) {
-                if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-                    chrome.storage.session.set({ encryptionKey });
-                }
+            // Tüm durumlar için chrome.storage.session'a kaydet
+            // Background script autofill için buna ihtiyaç duyar
+            // Session storage tarayıcı kapanınca silinir - güvenli
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                chrome.storage.session.set({ encryptionKey });
             }
-            // Timer seçenekleri için: Key sadece sessionStorage'da, diske yazılmaz
-            // Bu güvenli çünkü tarayıcı kapandığında otomatik silinir
-            // CASE: "Immediately" (0) -> Don't save anywhere (Session only)
+            // CASE: "Immediately" (0) -> Timer setle, popup kapanınca kilitlenir
 
             setIsLocked(false);
             resetIdleTimer();
