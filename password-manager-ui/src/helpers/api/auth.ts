@@ -68,10 +68,19 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
   try {
     const response = await apiClient.post<LoginResponse>('/Auth/Login', data);
 
+    console.log('[auth.ts login] API Response:', {
+      hasAccessToken: !!response.data.accessToken,
+      accessTokenType: typeof response.data.accessToken,
+      hasToken: !!response.data.accessToken?.token,
+    });
+
     // Token ve bilgileri sakla
     if (response.data.accessToken?.token) {
       localStorage.setItem('authToken', response.data.accessToken.token);
       localStorage.setItem('tokenExpiration', response.data.accessToken.expirationDate);
+      console.log('[auth.ts login] Token saved to localStorage');
+    } else {
+      console.warn('[auth.ts login] No accessToken.token in response!');
     }
 
     // Refresh token cookie olarak geliyor (httpOnly - güvenlik için)
@@ -79,6 +88,15 @@ export const login = async (data: UserForLoginDto): Promise<LoginResponse> => {
     if (response.data.refreshToken?.token) {
       localStorage.setItem('refreshToken', response.data.refreshToken.token);
       localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
+      console.log('[auth.ts login] Refresh token saved to localStorage');
+
+      // Chrome extension için de kaydet (background script kullanır)
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        chrome.storage.local.set({
+          refreshToken: response.data.refreshToken.token,
+          refreshTokenExpiration: response.data.refreshToken.expirationDate
+        });
+      }
     }
 
     return response.data;

@@ -379,20 +379,42 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     // Session storage'dan hassas verileri al (tarayıcı kapanınca silinir)
     const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
     // Local storage'dan kalıcı verileri al - Sadece şifreli parolalar ve API bilgileri
-    const localData = await chrome.storage.local.get(['apiUrl', 'encryptedPasswords', 'refreshToken']);
+    const localData = await chrome.storage.local.get(['apiUrl', 'encryptedPasswords', 'refreshToken', 'authToken']);
+
+    // Debug log
+    console.log('[BG] handleGetPasswordsForSite - sessionData:', {
+      hasAuthToken: !!sessionData.authToken,
+      hasEncryptionKey: !!sessionData.encryptionKey
+    });
+    console.log('[BG] handleGetPasswordsForSite - localData:', {
+      hasAuthToken: !!localData.authToken,
+      hasRefreshToken: !!localData.refreshToken
+    });
 
     let token = sessionData.authToken as string | undefined;
     let encryptionKey = sessionData.encryptionKey as string | undefined;
 
+    // Session storage'da token yoksa local storage'dan al (popup kaydetmiş olabilir)
+    if (!token && localData.authToken) {
+      console.log('[BG] Token session\'da yok, local storage\'dan alınıyor...');
+      token = localData.authToken as string;
+      // Session storage'a da kaydet (gelecek istekler için)
+      await chrome.storage.session.set({ authToken: token });
+    }
+
     // Güvenlik: Encryption Key sadece session storage'da tutulur
     // Eğer yoksa kasa kilitlidir - kullanıcı master parola ile açmalı
 
-    // 2. Token yoksa ve Refresh Token varsa (Tarayıcı yeniden başlatıldıysa)
+    // Token yoksa ve Refresh Token varsa (Service worker uyandıysa)
     if (!token && localData.refreshToken) {
+      console.log('[BG] Token yok, refresh token ile yenileniyor...');
       const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
       const newTokens = await refreshAccessToken(localData.refreshToken as string, apiUrl);
       if (newTokens?.accessToken) {
         token = newTokens.accessToken;
+        // Yeni token'ı session storage'a kaydet
+        await chrome.storage.session.set({ authToken: token });
+        console.log('[BG] Token yenilendi ve session storage\'a kaydedildi');
       }
     }
 

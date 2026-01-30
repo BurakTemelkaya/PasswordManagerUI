@@ -135,6 +135,10 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
 
       // 5. Token'ı al
       const token = localStorage.getItem('authToken');
+      console.log('[Login] Token from localStorage:', {
+        hasToken: !!token,
+        tokenLength: token?.length || 0
+      });
 
       // JWT'den userId'yi al
       let userId = formData.userName; // fallback
@@ -166,6 +170,11 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
       // Chrome extension storage'a kaydet
       if (typeof chrome !== 'undefined' && chrome.storage) {
         try {
+          console.log('[Login] Saving to chrome.storage.session...', {
+            hasToken: !!token,
+            hasEncryptionKey: !!encryptionKey
+          });
+
           // Session storage: Tarayıcı kapanınca silinir (güvenlik için)
           // authToken ve encryptionKey burada - her oturumda yeniden giriş gerekir
           await chrome.storage.session.set({
@@ -175,9 +184,20 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             kdfIterations: kdfParams.kdfIterations,
           });
 
+          console.log('[Login] chrome.storage.session saved successfully');
+
+          // Doğrulama: Kaydedilen değerleri oku
+          const verifySession = await chrome.storage.session.get(['authToken', 'encryptionKey']);
+          console.log('[Login] Verification - session storage:', {
+            hasAuthToken: !!verifySession.authToken,
+            hasEncryptionKey: !!verifySession.encryptionKey
+          });
+
           // Local storage: Kalıcı veriler - kullanıcı adı ve token hatırlansın
+          const refreshToken = localStorage.getItem('refreshToken');
           await chrome.storage.local.set({
-            authToken: token, // KALI CI LIK
+            authToken: token,
+            refreshToken: refreshToken, // Tarayıcı yeniden başladığında token yenilemek için
             userName: formData.userName,
             userId: userId,
             encryptionKeyCheck: encryptionKeyCheck, // Extension için de sakla
@@ -185,6 +205,8 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             kdfIterations: kdfParams.kdfIterations, // Vault unlock için gerekli
             apiUrl: config.api.baseURL
           });
+
+          console.log('[Login] chrome.storage.local saved successfully');
         } catch (err) {
           console.warn('Chrome storage kayıt hatası:', err);
         }
