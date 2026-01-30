@@ -124,69 +124,73 @@ const UnlockVaultPopup = ({ onUnlock, onLogout }: UnlockVaultPopupProps) => {
     };
 
     return (
-        <div className="popup-page" style={{ justifyContent: 'center', textAlign: 'center', padding: '24px' }}>
-            {/* Bitwarden-style User Avatar & Info */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-                <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    background: '#3b82f6', // Primary blue
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '24px',
-                    fontWeight: 600,
-                    marginBottom: '16px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                }}>
-                    {username ? username.substring(0, 2).toUpperCase() : '🔒'}
-                </div>
-                {username ? (
-                    <>
-                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{username}</h3>
-                        <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0 0' }}>Kasa Kilitli</p>
-                    </>
-                ) : (
-                    <h3 style={{ margin: 0 }}>Kasa Kilitli</h3>
-                )}
-            </div>
-
-            {!username && <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '14px' }}>
-                Kasanızı açmak için Master Parolanızı girin.
-            </p>}
-
-            {error && <div className="alert alert-error">{error}</div>}
-
-            <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-                <div className="form-group">
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Master Parola"
-                        required
-                        autoFocus
-                        className="input"
-                        style={{ width: '100%' }}
-                    />
+        <div className="popup-page" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', overflowY: 'auto' }}>
+                {/* Bitwarden-style User Avatar & Info */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
+                    <div style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '50%',
+                        background: '#3b82f6', // Primary blue
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '24px',
+                        fontWeight: 600,
+                        marginBottom: '16px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                    }}>
+                        {username ? username.substring(0, 2).toUpperCase() : '🔒'}
+                    </div>
+                    {username ? (
+                        <>
+                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{username}</h3>
+                            <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0 0' }}>Kasa Kilitli</p>
+                        </>
+                    ) : (
+                        <h3 style={{ margin: 0 }}>Kasa Kilitli</h3>
+                    )}
                 </div>
 
-                <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-                    {loading ? 'Açılıyor...' : 'Kasayı Aç'}
-                </button>
-            </form>
+                {!username && <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '14px' }}>
+                    Kasanızı açmak için Master Parolanızı girin.
+                </p>}
 
-            <div style={{ marginTop: '16px' }}>
+                {error && <div className="alert alert-error">{error}</div>}
+
+                <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+                    <div className="form-group">
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Master Parola"
+                            required
+                            autoFocus
+                            className="input"
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+
+                    <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                        {loading ? 'Açılıyor...' : 'Kasayı Aç'}
+                    </button>
+                </form>
+
+                <div style={{ marginTop: '20px', marginBottom: '20px', textAlign: 'center' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>veya</span>
+                </div>
+
                 <button
                     onClick={onLogout}
-                    className="btn-link"
-                    style={{ fontSize: '13px', color: 'var(--text-muted)' }}
+                    className="btn btn-outline btn-block"
                 >
-                    Farklı bir hesapla giriş yap
+                    Çıkış Yap
                 </button>
             </div>
+
         </div>
     );
 };

@@ -55,6 +55,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+
   useEffect(() => {
     // localStorage'dan kullanıcı bilgilerini al
     const storedUserName = localStorage.getItem('userName');
@@ -88,6 +89,8 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
     if (!storedEncryptionKey || !storedKdfSalt) {
       setError('Oturum bilgileri bulunamadı. Lütfen yeniden giriş yapın.');
     }
+
+
   }, []);
 
   const saveSecuritySettings = () => {
@@ -466,22 +469,23 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
               </h2>
 
               <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px' }}>Kasa Zaman Aşımı (Kullanılmadığında)</label>
+                <label style={{ display: 'block', marginBottom: '8px' }}>Kasa Zaman Aşımı</label>
                 <select
                   value={vaultTimeout}
                   onChange={(e) => setVaultTimeout(parseInt(e.target.value))}
                   className="input"
                   style={{ width: '100%', padding: '10px' }}
                 >
-                  <option value="-1">Asla (Önerilmez)</option>
+                  <option value="0">Hemen (Popup Kapatılınca)</option>
                   <option value="1">1 Dakika</option>
-                  <option value="5">5 Dakika (Varsayılan)</option>
+                  <option value="5">5 Dakika</option>
                   <option value="15">15 Dakika</option>
                   <option value="30">30 Dakika</option>
                   <option value="60">1 Saat</option>
+                  <option value="-1">Tarayıcı Yeniden Başlatılınca</option>
                 </select>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Belirtilen süre boyunca işlem yapmazsanız kasa otomatik olarak kilitlenir.
+                  Kasanız belirlenen süre sonunda otomatik olarak kilitlenir. Şifreleme anahtarı asla diske kaydedilmez.
                 </p>
               </div>
 
@@ -496,17 +500,12 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
                   <option value="lock">Kasayı Kilitle (Master Parola Gerekir)</option>
                   <option value="logout">Oturumu Kapat (Tekrar Email ile Giriş Gerekir)</option>
                 </select>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  "Tarayıcı Yeniden Başlatılınca" seçeneği aktifken, kilitli durumda bile internet olmadan giriş yapabilirsiniz.
+                </p>
               </div>
 
               <div className="form-group" style={{ marginBottom: '24px' }}>
-                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={lockOnBrowserClose}
-                    onChange={(e) => setLockOnBrowserClose(e.target.checked)}
-                  />
-                  Tarayıcı Kapandığında Kilitle (Önerilen)
-                </label>
                 <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', opacity: 0.7 }}>
                   <input
                     type="checkbox"
@@ -517,10 +516,12 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
                 </label>
               </div>
 
+
+
               <button
                 onClick={saveSecuritySettings}
                 className="btn btn-primary"
-                style={{ width: '100%' }}
+                style={{ width: '100%', marginTop: '16px' }}
               >
                 Ayarları Kaydet
               </button>

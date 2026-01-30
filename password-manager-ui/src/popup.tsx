@@ -181,7 +181,10 @@ const Popup: React.FC = () => {
   if (state.page === 'unlock-vault') {
     return (
       <div className="popup-page" style={{ height: '100%', minHeight: '500px' }}>
-        <UnlockVaultPopup onUnlock={handleUnlock} onLogout={handleLogout} />
+        <UnlockVaultPopup
+          onUnlock={handleUnlock}
+          onLogout={handleLogout}
+        />
       </div>
     );
   }

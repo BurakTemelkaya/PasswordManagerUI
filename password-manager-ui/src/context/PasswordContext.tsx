@@ -57,6 +57,14 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
                     try {
                         const parsedHeaders = JSON.parse(cached);
                         setPasswords(parsedHeaders);
+
+                        // MIGRATION: Ensure chrome.storage.local has encryptedPasswords
+                        // This handles the case where user has cache in localStorage but not yet in extension storage
+                        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                            chrome.storage.local.set({ encryptedPasswords: parsedHeaders });
+                            chrome.storage.local.remove(['passwords']); // Remove insecure old key
+                        }
+
                         // State güncellendiği için useEffect tekrar çalışacak (dependency'de passwords.length var mı? Eklemeliyiz)
                         // Ancak decrypt'i burada çağıramayız çünkü state hemen güncellenmez.
                         // Bu yüzden decryptCurrentPasswords'i dependency'e ekleyip orada çağıracağız.
@@ -77,6 +85,13 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (!isLocked && passwords.length > 0 && decryptedPasswords.size === 0) {
             decryptCurrentPasswords();
+        }
+
+        // ROBUST SYNC: Ensure encrypted passwords are always synced to extension storage
+        if (passwords.length > 0 && typeof chrome !== 'undefined' && chrome.storage?.local) {
+            chrome.storage.local.set({ encryptedPasswords: passwords }, () => {
+                // Optional: log success in dev mode
+            });
         }
     }, [passwords, isLocked]);
 
@@ -132,8 +147,18 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
             const passwordList = await getAllPasswords();
             setPasswords(passwordList);
 
-            // LocalStorage'a kaydet (Cache)
+            // LocalStorage'a kaydet (Cache - Popup Context)
             localStorage.setItem('cachedPasswords', JSON.stringify(passwordList));
+
+            // Extension Sync (Background Script için)
+            if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                console.log('📦 Syncing encrypted passwords to extension storage...');
+                chrome.storage.local.set({ encryptedPasswords: passwordList }, () => {
+                    console.log('✅ Encrypted passwords synced to chrome.storage.local');
+                });
+                // Clean up old insecure cache if exists
+                chrome.storage.local.remove(['passwords']);
+            }
 
             // Başarılı senkronizasyon zamanını kaydet (Server Saati)
             try {

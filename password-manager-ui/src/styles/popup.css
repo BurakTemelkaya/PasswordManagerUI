@@ -211,7 +211,7 @@
 }
 
 .popup-current-site-label {
-  font-size: var(--pm-font-size-xs);
+  font-size: var(--pm-font-size-sm);
   font-weight: 600;
   color: var(--pm-info);
   text-transform: uppercase;
@@ -219,7 +219,7 @@
 }
 
 .popup-current-site-url {
-  font-size: var(--pm-font-size-sm);
+  font-size: var(--pm-font-size-md);
   color: var(--pm-text-primary);
   font-weight: 500;
   white-space: nowrap;

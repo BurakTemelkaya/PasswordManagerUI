@@ -205,7 +205,7 @@ async function fetchWithRefresh(url: string, token: string, apiUrl: string): Pro
   return response;
 }
 
-async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedPassword[]> {
+async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedPassword[] | null> {
   try {
     // Get all passwords (yeni endpoint) - refresh token destekli
     const response = await fetchWithRefresh(`${apiUrl}/Password/GetAll`, token, apiUrl);
@@ -220,7 +220,7 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
         await chrome.storage.local.remove(['refreshToken', 'refreshTokenExpiration', 'passwords']);
       }
 
-      throw new Error(`API error: ${response.status}`);
+      return null;
     }
 
     const data = await response.json();
@@ -229,7 +229,7 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
     return Array.isArray(data) ? data : (data.$values || []);
   } catch (error) {
     console.error('Fetch passwords error:', error);
-    return [];
+    return null;
   }
 }
 
@@ -307,9 +307,24 @@ chrome.runtime.onInstalled.addListener(() => {
         contexts: ['editable']
       });
     });
+
+    // Debug: Check storage on install/update
+    chrome.storage.local.get(['encryptedPasswords', 'passwords'], (data) => {
+      console.log('🚀 Extension Installed/Updated');
+      console.log('🔒 Encrypted Status:', data.encryptedPasswords ? '✅ Found' : '❌ Not Found');
+      console.log('⚠️ Legacy Plaintext Status:', data.passwords ? '❌ Found (Should be removed)' : '✅ Clean');
+
+      // Proactive Cache Check
+      ensureEncryptedCache();
+    });
   } catch (error) {
     console.error('Context menu error:', error);
   }
+});
+
+// onStartup is redundant if we check on every interaction, but good for proactive sync
+chrome.runtime.onStartup.addListener(() => {
+  ensureEncryptedCache();
 });
 
 // ============================================
@@ -363,40 +378,25 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
   try {
     // Session storage'dan hassas verileri al (tarayıcı kapanınca silinir)
     const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
-    // Local storage'dan kalıcı verileri al - artık parolalar da burada
-    const localData = await chrome.storage.local.get(['apiUrl', 'passwords', 'persistentEncryptionKey', 'refreshToken']);
+    // Local storage'dan kalıcı verileri al - Sadece şifreli parolalar ve API bilgileri
+    const localData = await chrome.storage.local.get(['apiUrl', 'encryptedPasswords', 'refreshToken']);
 
     let token = sessionData.authToken as string | undefined;
     let encryptionKey = sessionData.encryptionKey as string | undefined;
 
-    console.log('🔍 Background Auth Check:', {
-      hasSessionToken: !!token,
-      hasSessionKey: !!encryptionKey,
-      hasPersistentKey: !!localData.persistentEncryptionKey,
-      hasRefreshToken: !!localData.refreshToken
-    });
-
-    // 1. Encryption Key yoksa ve Persistent Key varsa (Tarayıcı yeniden başlatıldıysa)
-    if (!encryptionKey && localData.persistentEncryptionKey) {
-      encryptionKey = localData.persistentEncryptionKey as string;
-      // Session'a geri yükle
-      await chrome.storage.session.set({ encryptionKey });
-      console.log('🔓 Persistent key ile kilit açıldı (Background)');
-    }
+    // Güvenlik: Encryption Key sadece session storage'da tutulur
+    // Eğer yoksa kasa kilitlidir - kullanıcı master parola ile açmalı
 
     // 2. Token yoksa ve Refresh Token varsa (Tarayıcı yeniden başlatıldıysa)
     if (!token && localData.refreshToken) {
-      console.log('🔄 Token session\'da yok, refresh deneniyor...');
       const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
       const newTokens = await refreshAccessToken(localData.refreshToken as string, apiUrl);
       if (newTokens?.accessToken) {
         token = newTokens.accessToken;
-        // refreshAccessToken fonksiyonu session'a kaydediyor zaten
       }
     }
 
     if (!token || !encryptionKey) {
-      console.warn('❌ Auth failed. Token:', !!token, 'Key:', !!encryptionKey);
       // Not authenticated
       sendResponse({
         success: false,
@@ -407,74 +407,48 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       return;
     }
 
-    // Önce local storage'dan parolaları kontrol et
-    const cachedPasswords = localData.passwords as PasswordEntry[] | undefined;
+    // CACHE STRATEGY:
+    // 1. Önce storage'daki 'encryptedPasswords' (Şifreli Önbellek) kontrol et
+    let encryptedPasswords = localData.encryptedPasswords as EncryptedPassword[] | undefined;
 
-    if (cachedPasswords && cachedPasswords.length > 0) {
-      // Filter by hostname
-      const matchingPasswords = cachedPasswords.filter(pwd =>
-        matchesHostname(pwd.websiteUrl, hostname)
-      );
+    // 2. Cache yoksa API'den çek
+    if (!encryptedPasswords || encryptedPasswords.length === 0) {
+      console.log('🌐 API\'den parolalar çekiliyor...');
+      const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
+      const fetched = await fetchPasswords(token, apiUrl);
 
-      // If no matching, return all passwords
-      let passwordsToReturn: PasswordEntry[];
-      if (matchingPasswords.length > 0) {
-        passwordsToReturn = matchingPasswords;
+      if (fetched) {
+        encryptedPasswords = fetched;
+        // API'den gelen veriyi ŞİFRELİ olarak kaydet (Plaintext kaydetme!)
+        if (encryptedPasswords.length > 0) {
+          await chrome.storage.local.set({ encryptedPasswords });
+          // Varsa eski 'passwords' (plaintext) verisini sil (Migration)
+          await chrome.storage.local.remove(['passwords']);
+        }
       } else {
-        passwordsToReturn = cachedPasswords.slice(0, 10);
+        // Fetch failed
+        encryptedPasswords = [];
       }
-
-      sendResponse({
-        success: true,
-        isAuthenticated: true,
-        passwords: passwordsToReturn,
-        matching: matchingPasswords.length
-      });
-      return;
+    } else {
+      console.log('📦 Şifreli önbellekten yüklendi');
     }
 
-    // Local'de yoksa API'den çek (sadece ilk seferde)
-    console.log('🌐 API\'den parolalar çekiliyor...');
-    const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
-    const encryptedPasswords = await fetchPasswords(token, apiUrl);
-
-    // fetchPasswords içinde zaten 401 durumunda refresh token deneniyor
-    // Eğer hala boşsa ve token geçersizse, oturum sonlandırılmış demektir
-    if (encryptedPasswords.length === 0) {
-      // Token hala geçerli mi kontrol et
-      const sessionCheck = await chrome.storage.session.get(['authToken']);
-      if (!sessionCheck.authToken) {
-        // Token silindi, oturum sonlandırıldı
-        sendResponse({
-          success: false,
-          isAuthenticated: false,
-          passwords: [],
-          message: 'Oturum süresi doldu'
-        });
-        return;
-      }
-    }
-
+    // 3. Verileri HAFIZADA çöz (Diske yazma!)
     const decryptedPasswords: PasswordEntry[] = [];
-
-    for (const encrypted of encryptedPasswords) {
-      const decrypted = await decryptPassword(encrypted, encryptionKey);
-      if (decrypted) {
-        decryptedPasswords.push(decrypted);
+    if (encryptedPasswords && encryptedPasswords.length > 0) {
+      for (const encrypted of encryptedPasswords) {
+        const decrypted = await decryptPassword(encrypted, encryptionKey);
+        if (decrypted) {
+          decryptedPasswords.push(decrypted);
+        }
       }
     }
 
-    // Parolaları local storage'a kaydet (cache olarak)
-    if (decryptedPasswords.length > 0) {
-      await chrome.storage.local.set({ passwords: decryptedPasswords });
-    }
-
-    // Filter by hostname
+    // 4. Domain bazlı filtreleme
     const matchingPasswords = decryptedPasswords.filter(pwd =>
       matchesHostname(pwd.websiteUrl, hostname)
     );
 
-    // If no matching, return all passwords
     let passwordsToReturn: PasswordEntry[];
     if (matchingPasswords.length > 0) {
       passwordsToReturn = matchingPasswords;
@@ -496,6 +470,28 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       passwords: [],
       error: String(error)
     });
+  }
+}
+
+async function ensureEncryptedCache() {
+  try {
+    const localData = await chrome.storage.local.get(['authToken', 'encryptedPasswords', 'apiUrl']);
+
+    // If we have token (logged in) but cache is missing
+    if (localData.authToken && (!localData.encryptedPasswords || !Array.isArray(localData.encryptedPasswords))) {
+      console.log('🔄 Proactive: Auth token found but check missing. background.js Fetching...');
+      const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
+      const fetched = await fetchPasswords(localData.authToken as string, apiUrl);
+
+      if (fetched) {
+        await chrome.storage.local.set({ encryptedPasswords: fetched });
+        console.log('✅ Proactive: Cache populated with ' + fetched.length + ' items.');
+      } else {
+        console.log('❌ Proactive: Fetch failed.');
+      }
+    }
+  } catch (e) {
+    console.error('Proactive sync error:', e);
   }
 }
 
