@@ -88,10 +88,13 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // ROBUST SYNC: Ensure encrypted passwords are always synced to extension storage
-        if (passwords.length > 0 && typeof chrome !== 'undefined' && chrome.storage?.local) {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.set({ encryptedPasswords: passwords }, () => {
                 // Optional: log success in dev mode
             });
+        } else if (typeof window !== 'undefined') {
+            // Extension Context dışındaysak (Web App) eklentiye cache temizlemesi için sinyal gönder
+            window.postMessage({ type: 'PM_EXTENSION_REFRESH_CACHE' }, '*');
         }
     }, [passwords, isLocked]);
 
@@ -151,13 +154,16 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
             localStorage.setItem('cachedPasswords', JSON.stringify(passwordList));
 
             // Extension Sync (Background Script için)
-            if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 console.log('📦 Syncing encrypted passwords to extension storage...');
                 chrome.storage.local.set({ encryptedPasswords: passwordList }, () => {
                     console.log('✅ Encrypted passwords synced to chrome.storage.local');
                 });
                 // Clean up old insecure cache if exists
                 chrome.storage.local.remove(['passwords']);
+            } else if (typeof window !== 'undefined') {
+                // Extension dışındaki Web App context'i
+                window.postMessage({ type: 'PM_EXTENSION_REFRESH_CACHE' }, '*');
             }
 
             // Başarılı senkronizasyon zamanını kaydet (Server Saati)

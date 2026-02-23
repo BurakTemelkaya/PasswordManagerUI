@@ -178,10 +178,17 @@ const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenera
     if (window.confirm('Bu parolayı silmek istediğinize emin misiniz?')) {
       try {
         await deletePassword({ id });
-        setPasswords(passwords.filter((p) => p.id !== id));
+        const updatedPasswords = passwords.filter((p) => p.id !== id);
+        setPasswords(updatedPasswords);
         const newDecrypted = new Map(decryptedPasswords);
         newDecrypted.delete(id);
         setDecryptedPasswords(newDecrypted);
+
+        // Autofill cache'ini de güncelle
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+          chrome.storage.local.set({ encryptedPasswords: updatedPasswords });
+        }
+        localStorage.setItem('cachedPasswords', JSON.stringify(updatedPasswords));
       } catch (err: unknown) {
         if (err instanceof ApiError) {
           setError(err.getUserMessage());

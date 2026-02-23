@@ -188,9 +188,13 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        // Mevcut JWT token ile yeni token al (GET metodu)
-        const response = await axios.get(
+        const storedRefreshToken = localStorage.getItem('refreshToken');
+
+        // Mevcut JWT token ile yeni token al
+        // Uzantı popup'ından gelen cross-site isteklerde cookieler çalışmayabileceği için, POST ile deneyelim
+        const response = await axios.post(
           `${config.api.baseURL}/Auth/RefreshToken`,
+          { refreshToken: storedRefreshToken }, // Body'de de refreshToken yolluyoruz
           {
             withCredentials: true, // Cookie'leri gönder
             headers: {
@@ -200,9 +204,9 @@ apiClient.interceptors.response.use(
           }
         );
 
-        // API response: { token, expirationDate }
-        const newAccessToken = response.data.token;
-        const newExpiration = response.data.expirationDate;
+        // API response: { token, expirationDate } veya { accessToken: { token, ... } }
+        const newAccessToken = response.data.token || response.data.accessToken?.token;
+        const newExpiration = response.data.expirationDate || response.data.accessToken?.expirationDate;
 
         if (newAccessToken) {
           localStorage.setItem('authToken', newAccessToken);
@@ -249,9 +253,18 @@ function forceLogout() {
   localStorage.removeItem('refreshTokenExpiration');
   localStorage.removeItem('userId');
   localStorage.removeItem('userName');
-  localStorage.removeItem('encryptionKey');
   localStorage.removeItem('passwords');
-  window.location.href = '/login';
+
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.session?.remove(['authToken', 'encryptionKey']);
+    chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords', 'tokenExpiration', 'refreshTokenExpiration']);
+  }
+
+  if (window.location.protocol === 'chrome-extension:') {
+    window.location.reload();
+  } else {
+    window.location.href = '/login';
+  }
 }
 
 export { parseErrorResponse };

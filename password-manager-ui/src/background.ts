@@ -254,25 +254,48 @@ function extractMainDomain(hostname: string): string {
   return domain;
 }
 
-function matchesHostname(websiteUrl: string, currentHostname: string): boolean {
-  try {
-    if (!websiteUrl) return false;
+/**
+ * URL'lerin ne kadar iyi eşleştiğini puanlar (Sıralama için)
+ * 3 = Tam Eşleşme (Exact hostname)
+ * 2 = Kök Domain Eşleşmesi (Root domain)
+ * 1 = Kısmi Eşleşme (Substring)
+ * 0 = Eşleşme Yok
+ */
+function scoreHostnameMatch(websiteUrl: string, currentHostname: string): number {
+  if (!websiteUrl || !currentHostname) return 0;
 
-    // URL'yi parse et
+  try {
     const url = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`);
     const savedHostname = url.hostname;
+    const currentClean = currentHostname.replace(/^www\./, '');
+    const savedClean = savedHostname.replace(/^www\./, '');
 
-    // Ana domain'leri karşılaştır
-    const savedDomain = extractMainDomain(savedHostname);
-    const currentDomain = extractMainDomain(currentHostname);
+    // 1. Tam Eşleşme
+    if (savedClean === currentClean) {
+      return 3;
+    }
 
-    // Domain eşleşmesi
-    return savedDomain === currentDomain;
+    // 2. Kök Domain Eşleşmesi
+    const savedDomain = extractMainDomain(savedClean);
+    const currentDomain = extractMainDomain(currentClean);
+    if (savedDomain === currentDomain) {
+      return 2;
+    }
+
+    // 3. Kısmi Eşleşme
+    if (savedClean.includes(currentClean) || currentClean.includes(savedClean)) {
+      return 1;
+    }
+
+    return 0;
   } catch {
     // Parse edilemezse basit string karşılaştırması
     const savedClean = websiteUrl.toLowerCase().replace(/^www\./, '');
     const currentClean = currentHostname.toLowerCase().replace(/^www\./, '');
-    return savedClean.includes(currentClean) || currentClean.includes(savedClean);
+
+    if (savedClean === currentClean) return 3;
+    if (savedClean.includes(currentClean) || currentClean.includes(savedClean)) return 1;
+    return 0;
   }
 }
 
@@ -280,6 +303,17 @@ function matchesHostname(websiteUrl: string, currentHostname: string): boolean {
 // STATE
 // ============================================
 const loginTabs = new Set<number>();
+
+// Pending credentials - form submit sonrası sayfa yönlendirmede kullanılır
+interface PendingCredential {
+  username: string;
+  password: string;
+  hostname: string;
+  isSignup: boolean;
+  tabId: number;
+  timestamp: number;
+}
+let pendingCredentials: PendingCredential | null = null;
 
 // ============================================
 // EXTENSION LIFECYCLE
@@ -359,6 +393,67 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           } catch {
             chrome.tabs.create({ url: chrome.runtime.getURL('public/popup.html') });
           }
+          sendResponse({ success: true });
+          break;
+
+        case 'SAVE_PASSWORD':
+          await handleSavePassword(request, sendResponse);
+          break;
+
+        case 'CHECK_CREDENTIAL_EXISTS':
+          await handleCheckCredentialExists(request.hostname, request.username, sendResponse);
+          break;
+
+        case 'CREDENTIAL_SUBMITTED':
+          // Content script form submit yakaladı, credential'ları sakla
+          console.log('[PM BG-DEBUG] CREDENTIAL_SUBMITTED received from tab', sender.tab?.id, '- hostname:', request.hostname, '- username:', request.username);
+          if (sender.tab?.id) {
+            pendingCredentials = {
+              username: request.username,
+              password: request.password,
+              hostname: request.hostname,
+              isSignup: request.isSignup || false,
+              tabId: sender.tab.id,
+              timestamp: Date.now()
+            };
+            console.log('[PM BG-DEBUG] Credential stored for tab', sender.tab.id);
+          }
+          sendResponse({ success: true });
+          break;
+
+        case 'GET_PENDING_CREDENTIALS':
+          // Yeni sayfa yüklendikten sonra content script pending credential sorar
+          console.log('[PM BG-DEBUG] GET_PENDING_CREDENTIALS from tab', sender.tab?.id, '- pending:', pendingCredentials ? { tabId: pendingCredentials.tabId, hostname: pendingCredentials.hostname } : null);
+          if (pendingCredentials && sender.tab?.id === pendingCredentials.tabId) {
+            // 30 saniye içinde geçerliyse
+            if (Date.now() - pendingCredentials.timestamp < 30000) {
+              console.log('[PM BG-DEBUG] Returning pending credentials for tab', sender.tab.id);
+              sendResponse({
+                success: true,
+                hasPending: true,
+                ...pendingCredentials
+              });
+            } else {
+              console.log('[PM BG-DEBUG] Pending credentials expired');
+              pendingCredentials = null;
+              sendResponse({ success: true, hasPending: false });
+            }
+          } else {
+            console.log('[PM BG-DEBUG] No matching pending credentials');
+            sendResponse({ success: true, hasPending: false });
+          }
+          break;
+
+        case 'CLEAR_PENDING_CREDENTIALS':
+          if (sender.tab?.id && pendingCredentials?.tabId === sender.tab.id) {
+            pendingCredentials = null;
+          }
+          sendResponse({ success: true });
+          break;
+
+        case 'CLEAR_CACHE':
+          console.log('[PM BG-DEBUG] App requested cache clear (e.g. password deleted). Emptying encryptedPasswords cache.');
+          await chrome.storage.local.remove('encryptedPasswords');
           sendResponse({ success: true });
           break;
 
@@ -481,23 +576,23 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       }
     }
 
-    // 4. Domain bazlı filtreleme
-    const matchingPasswords = decryptedPasswords.filter(pwd =>
-      matchesHostname(pwd.websiteUrl, hostname)
-    );
+    // 4. Domain bazlı filtreleme ve en iyi eşleşen üste gelecek şekilde sıralama
+    const scoredPasswords = decryptedPasswords
+      .map(pwd => ({
+        pwd,
+        score: scoreHostnameMatch(pwd.websiteUrl, hostname)
+      }))
+      .filter(item => item.score > 0) // Sadece eşleşenleri al
+      .sort((a, b) => b.score - a.score); // En yüksek puan ilk sırada
 
-    let passwordsToReturn: PasswordEntry[];
-    if (matchingPasswords.length > 0) {
-      passwordsToReturn = matchingPasswords;
-    } else {
-      passwordsToReturn = decryptedPasswords.slice(0, 10);
-    }
+    // Puanlamadan çıkarıp salt objeleri al
+    const passwordsToReturn = scoredPasswords.map(item => item.pwd);
 
     sendResponse({
       success: true,
       isAuthenticated: true,
       passwords: passwordsToReturn,
-      matching: matchingPasswords.length
+      matching: passwordsToReturn.length
     });
   } catch (error) {
     console.error('Get passwords error:', error);
@@ -585,6 +680,226 @@ async function handleGetCurrentTab(sendResponse: (response: any) => void) {
 }
 
 // ============================================
+// AUTO-SAVE: ENCRYPTION HELPERS
+// ============================================
+
+/**
+ * IV (Initialization Vector) üret - AES-GCM için (12 bytes)
+ */
+function generateIV(): string {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  let binary = '';
+  for (let i = 0; i < iv.byteLength; i++) {
+    binary += String.fromCharCode(iv[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * AES-256 GCM şifreleme (background context)
+ */
+async function encryptAESForSave(
+  plainText: string,
+  keyHex: string,
+  ivBase64: string
+): Promise<string> {
+  try {
+    if (!plainText) plainText = '';
+
+    const keyBuffer = hexToBuffer(keyHex);
+    const binaryString = atob(ivBase64);
+    const ivBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      ivBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyBuffer,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+
+    const encoder = new TextEncoder();
+    const plainBuffer = encoder.encode(plainText);
+
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: ivBytes },
+      cryptoKey,
+      plainBuffer
+    );
+
+    // Buffer → Base64
+    const encBytes = new Uint8Array(encryptedBuffer);
+    let encBinary = '';
+    for (let i = 0; i < encBytes.byteLength; i++) {
+      encBinary += String.fromCharCode(encBytes[i]);
+    }
+    return btoa(encBinary);
+  } catch (error) {
+    console.error('Background encrypt error:', error);
+    return '';
+  }
+}
+
+// ============================================
+// AUTO-SAVE: SAVE PASSWORD HANDLER
+// ============================================
+
+async function handleSavePassword(
+  request: { name: string; username: string; password: string; websiteUrl: string },
+  sendResponse: (response: { success: boolean; message?: string }) => void
+) {
+  try {
+    const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
+    const localData = await chrome.storage.local.get(['apiUrl', 'authToken']);
+
+    let token = sessionData.authToken as string | undefined;
+    const encryptionKey = sessionData.encryptionKey as string | undefined;
+
+    // Session'da token yoksa local'dan al
+    if (!token && localData.authToken) {
+      token = localData.authToken as string;
+      await chrome.storage.session.set({ authToken: token });
+    }
+
+    if (!token) {
+      sendResponse({ success: false, message: 'Giriş yapılmamış' });
+      return;
+    }
+
+    if (!encryptionKey) {
+      sendResponse({ success: false, message: 'Kasa kilitli' });
+      return;
+    }
+
+    // IV üret ve şifrele
+    const iv = generateIV();
+    const encryptedName = await encryptAESForSave(request.name || request.websiteUrl || 'Otomatik Kayıt', encryptionKey, iv);
+    const encryptedUserName = await encryptAESForSave(request.username, encryptionKey, iv);
+    const encryptedPassword = await encryptAESForSave(request.password, encryptionKey, iv);
+    const encryptedDescription = await encryptAESForSave('Otomatik kaydedildi', encryptionKey, iv);
+    const encryptedWebSiteUrl = await encryptAESForSave(request.websiteUrl, encryptionKey, iv);
+
+    // API'ye kaydet
+    const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
+
+    const postResponse = await fetch(`${apiUrl}/Password`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        encryptedName,
+        encryptedUserName,
+        encryptedPassword,
+        encryptedDescription,
+        encryptedWebSiteUrl,
+        iv
+      })
+    });
+
+    if (!postResponse.ok) {
+      // 401 ise refresh token dene
+      if (postResponse.status === 401) {
+        const refreshData = await chrome.storage.local.get(['refreshToken']);
+        const refreshToken = refreshData.refreshToken as string | undefined;
+        if (refreshToken) {
+          const newTokens = await refreshAccessToken(refreshToken, apiUrl);
+          if (newTokens?.accessToken) {
+            const retryResponse = await fetch(`${apiUrl}/Password`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${newTokens.accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                encryptedName,
+                encryptedUserName,
+                encryptedPassword,
+                encryptedDescription,
+                encryptedWebSiteUrl,
+                iv
+              })
+            });
+            if (!retryResponse.ok) {
+              sendResponse({ success: false, message: 'Kaydetme başarısız' });
+              return;
+            }
+          } else {
+            sendResponse({ success: false, message: 'Oturum süresi doldu' });
+            return;
+          }
+        } else {
+          sendResponse({ success: false, message: 'Oturum süresi doldu' });
+          return;
+        }
+      } else {
+        sendResponse({ success: false, message: `API hatası: ${postResponse.status}` });
+        return;
+      }
+    }
+
+    // Cache'i güncelle - API'den taze veriyi çek
+    console.log('✅ Parola otomatik kaydedildi');
+    const freshPasswords = await fetchPasswords(token, apiUrl);
+    if (freshPasswords) {
+      await chrome.storage.local.set({ encryptedPasswords: freshPasswords });
+    }
+
+    sendResponse({ success: true, message: 'Parola kaydedildi' });
+  } catch (error) {
+    console.error('Save password error:', error);
+    sendResponse({ success: false, message: String(error) });
+  }
+}
+
+// ============================================
+// AUTO-SAVE: CHECK CREDENTIAL EXISTS
+// ============================================
+
+async function handleCheckCredentialExists(
+  hostname: string,
+  username: string,
+  sendResponse: (response: { success: boolean; exists: boolean }) => void
+) {
+  try {
+    const sessionData = await chrome.storage.session.get(['encryptionKey']);
+    const localData = await chrome.storage.local.get(['encryptedPasswords']);
+    const encryptionKey = sessionData.encryptionKey as string | undefined;
+
+    if (!encryptionKey) {
+      sendResponse({ success: false, exists: false });
+      return;
+    }
+
+    const encryptedPasswords = localData.encryptedPasswords as EncryptedPassword[] | undefined;
+    if (!encryptedPasswords || encryptedPasswords.length === 0) {
+      sendResponse({ success: true, exists: false });
+      return;
+    }
+
+    // Decrypt ve hostname+username eşleşmesi kontrol et
+    for (const encrypted of encryptedPasswords) {
+      const decrypted = await decryptPassword(encrypted, encryptionKey);
+      if (decrypted && scoreHostnameMatch(decrypted.websiteUrl, hostname) > 0) {
+        if (decrypted.username.toLowerCase() === username.toLowerCase()) {
+          sendResponse({ success: true, exists: true });
+          return;
+        }
+      }
+    }
+
+    sendResponse({ success: true, exists: false });
+  } catch (error) {
+    console.error('Check credential exists error:', error);
+    sendResponse({ success: false, exists: false });
+  }
+}
+
+// ============================================
 // CONTEXT MENU
 // ============================================
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -612,5 +927,28 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url) {
     loginTabs.delete(tabId);
     chrome.action.setBadgeText({ text: '', tabId });
+    // Pending credential varsa temizleme - yeni sayfaya taşıyacağız
+  }
+
+  // Sayfa yüklendiğinde pending credential varsa content script'e bildir
+  if (changeInfo.status === 'complete' && pendingCredentials && pendingCredentials.tabId === tabId) {
+    // 30 saniye zaman aşımı
+    if (Date.now() - pendingCredentials.timestamp < 30000) {
+      // Content script'in yüklenmesi için kısa bir gecikme
+      setTimeout(() => {
+        if (!pendingCredentials || pendingCredentials.tabId !== tabId) return;
+        chrome.tabs.sendMessage(tabId, {
+          type: 'SHOW_AUTOSAVE_BANNER',
+          username: pendingCredentials.username,
+          password: pendingCredentials.password,
+          hostname: pendingCredentials.hostname,
+          isSignup: pendingCredentials.isSignup
+        }).catch(() => {
+          console.warn('[PM BG] Could not send autosave banner to tab', tabId);
+        });
+      }, 800);
+    } else {
+      pendingCredentials = null;
+    }
   }
 });
