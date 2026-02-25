@@ -618,18 +618,22 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
             border-color: var(--primary-color);
         }
         input.input {
-          background-color: var(--bg-main) !important;
-          color: var(--text-color) !important;
-          border: 1px solid var(--border-color);
+          background-color: var(--bg-main, var(--pm-bg-primary, #161b22)) !important;
+          color: var(--text-color, var(--pm-text-primary, #f0f6fc)) !important;
+          border: 1px solid var(--border-color, var(--pm-border, #30363d));
           padding: 12px;
           border-radius: 6px;
           width: 100%;
           box-sizing: border-box;
         }
         select.input {
-          background-color: var(--bg-main) !important;
-          color: var(--text-color) !important;
-          border: 1px solid var(--border-color);
+          background-color: var(--bg-main, var(--pm-bg-primary, #161b22)) !important;
+          color: var(--text-color, var(--pm-text-primary, #f0f6fc)) !important;
+          border: 1px solid var(--border-color, var(--pm-border, #30363d)) !important;
+        }
+        select.input option {
+          background-color: var(--bg-main, var(--pm-bg-primary, #161b22)) !important;
+          color: var(--text-color, var(--pm-text-primary, #f0f6fc)) !important;
         }
       `}</style>
 

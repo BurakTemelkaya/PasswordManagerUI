@@ -261,6 +261,11 @@ body {
   color: var(--text-color);
 }
 
+.form-group select option {
+  background-color: var(--bg-main);
+  color: var(--text-color);
+}
+
 .form-group input:focus,
 .form-group textarea:focus,
 .form-group select:focus {
