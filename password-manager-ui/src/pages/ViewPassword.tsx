@@ -157,7 +157,7 @@ const ViewPassword = () => {
               <p>{decrypted?.username || '-'}</p>
               <button
                 onClick={() => copyToClipboard(decrypted?.username || '')}
-                className="btn btn-small"
+                className="btn btn-small btn-secondary"
               >
                 Kopyala
               </button>
@@ -170,13 +170,13 @@ const ViewPassword = () => {
               <p>{showPassword ? decrypted?.password : '••••••••'}</p>
               <button
                 onClick={() => setShowPassword(!showPassword)}
-                className="btn btn-small"
+                className="btn btn-small btn-secondary"
               >
                 {showPassword ? 'Gizle' : 'Göster'}
               </button>
               <button
                 onClick={() => copyToClipboard(decrypted?.password || '')}
-                className="btn btn-small"
+                className="btn btn-small btn-secondary"
               >
                 Kopyala
               </button>

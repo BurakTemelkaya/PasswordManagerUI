@@ -240,7 +240,7 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
     if (onBack) {
       onBack();
     } else {
-      navigate('/dashboard');
+      navigate('/');
     }
   };
 
@@ -340,15 +340,16 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
           <span className="user-name" style={{ fontSize: '12px' }}>👤 {userName || 'Kullanıcı'}</span>
         </div>
 
-        {/* TAB MENU */}
         <div className="settings-tabs" style={{
           display: 'flex',
           gap: '4px',
-          background: 'var(--bg-input)',
+          background: 'var(--bg-main)',
           padding: '4px',
           borderRadius: '8px',
-          marginTop: '4px',
-          border: '1px solid var(--border-color)'
+          marginTop: isExtension ? '4px' : '20px',
+          border: '1px solid var(--border-color)',
+          maxWidth: isExtension ? '100%' : '500px',
+          margin: isExtension ? '0' : '20px auto 0 auto'
         }}>
           {(['general', 'security', 'import-export'] as TabType[]).map((tab) => (
             <button
@@ -608,104 +609,122 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
             cursor: pointer;
             border: 1px solid var(--border-color);
             font-size: 13px;
+            background: var(--bg-main);
+            color: var(--text-color);
         }
         .radio-btn.active {
             background: var(--primary-color);
             color: white;
             border-color: var(--primary-color);
         }
+        input.input {
+          background-color: var(--bg-main) !important;
+          color: var(--text-color) !important;
+          border: 1px solid var(--border-color);
+          padding: 12px;
+          border-radius: 6px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        select.input {
+          background-color: var(--bg-main) !important;
+          color: var(--text-color) !important;
+          border: 1px solid var(--border-color);
+        }
       `}</style>
 
       {/* Bottom Navigation */}
-      <nav style={{
-        background: 'var(--bg-sidebar)',
-        borderTop: '1px solid var(--border-color)',
-        display: 'flex',
-        justifyContent: 'space-around',
-        padding: '4px 0',
-        flexShrink: 0
-      }}>
-        <button
-          onClick={() => onDashboard ? onDashboard() : navigate('/dashboard')}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '2px',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            padding: '6px 4px',
-            fontSize: '10px'
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>🏠</span>
-          <span>Kasa</span>
-        </button>
-        <button
-          onClick={() => onGenerator ? onGenerator() : navigate('/generator')}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '2px',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            padding: '6px 4px',
-            fontSize: '10px'
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>🎲</span>
-          <span>Üreteci</span>
-        </button>
-        <button
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '2px',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--primary-color)',
-            cursor: 'pointer',
-            padding: '6px 4px',
-            fontSize: '10px'
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>⚙️</span>
-          <span style={{ fontWeight: '600' }}>Ayarlar</span>
-        </button>
-        <button
-          onClick={() => {
-            lock();
-            if (typeof chrome !== 'undefined' && chrome.runtime) {
-              setTimeout(() => window.close(), 100);
-            }
-          }}
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '2px',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            padding: '6px 4px',
-            fontSize: '10px'
-          }}
-        >
-          <span style={{ fontSize: '20px' }}>🔒</span>
-          <span>Kilitle</span>
-        </button>
-      </nav>
+      {isExtension && (
+        <nav style={{
+          background: 'var(--bg-main)',
+          borderTop: '1px solid var(--border-color)',
+          display: 'flex',
+          justifyContent: 'space-around',
+          padding: '4px 0',
+          flexShrink: 0
+        }}>
+          <button
+            onClick={() => onDashboard ? onDashboard() : navigate('/dashboard')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '6px 4px',
+              fontSize: '10px'
+            }}
+          >
+            <span style={{ fontSize: '20px' }}>🏠</span>
+            <span>Kasa</span>
+          </button>
+          <button
+            onClick={() => onGenerator ? onGenerator() : navigate('/generator')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '6px 4px',
+              fontSize: '10px'
+            }}
+          >
+            <span style={{ fontSize: '20px' }}>🎲</span>
+            <span>Üreteci</span>
+          </button>
+          <button
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--primary-color)',
+              cursor: 'pointer',
+              padding: '6px 4px',
+              fontSize: '10px'
+            }}
+          >
+            <span style={{ fontSize: '20px' }}>⚙️</span>
+            <span style={{ fontWeight: '600' }}>Ayarlar</span>
+          </button>
+          <button
+            onClick={() => {
+              lock();
+              if (typeof chrome !== 'undefined' && chrome.runtime) {
+                setTimeout(() => window.close(), 100);
+              }
+            }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '6px 4px',
+              fontSize: '10px'
+            }}
+          >
+            <span style={{ fontSize: '20px' }}>🔒</span>
+            <span>Kilitle</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
 };

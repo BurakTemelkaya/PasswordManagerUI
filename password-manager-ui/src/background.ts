@@ -406,7 +406,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         case 'CREDENTIAL_SUBMITTED':
           // Content script form submit yakaladı, credential'ları sakla
-          console.log('[PM BG-DEBUG] CREDENTIAL_SUBMITTED received from tab', sender.tab?.id, '- hostname:', request.hostname, '- username:', request.username);
           if (sender.tab?.id) {
             pendingCredentials = {
               username: request.username,
@@ -416,30 +415,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               tabId: sender.tab.id,
               timestamp: Date.now()
             };
-            console.log('[PM BG-DEBUG] Credential stored for tab', sender.tab.id);
           }
           sendResponse({ success: true });
           break;
 
         case 'GET_PENDING_CREDENTIALS':
           // Yeni sayfa yüklendikten sonra content script pending credential sorar
-          console.log('[PM BG-DEBUG] GET_PENDING_CREDENTIALS from tab', sender.tab?.id, '- pending:', pendingCredentials ? { tabId: pendingCredentials.tabId, hostname: pendingCredentials.hostname } : null);
           if (pendingCredentials && sender.tab?.id === pendingCredentials.tabId) {
             // 30 saniye içinde geçerliyse
             if (Date.now() - pendingCredentials.timestamp < 30000) {
-              console.log('[PM BG-DEBUG] Returning pending credentials for tab', sender.tab.id);
               sendResponse({
                 success: true,
                 hasPending: true,
                 ...pendingCredentials
               });
             } else {
-              console.log('[PM BG-DEBUG] Pending credentials expired');
               pendingCredentials = null;
               sendResponse({ success: true, hasPending: false });
             }
           } else {
-            console.log('[PM BG-DEBUG] No matching pending credentials');
             sendResponse({ success: true, hasPending: false });
           }
           break;
@@ -452,7 +446,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           break;
 
         case 'CLEAR_CACHE':
-          console.log('[PM BG-DEBUG] App requested cache clear (e.g. password deleted). Emptying encryptedPasswords cache.');
           await chrome.storage.local.remove('encryptedPasswords');
           sendResponse({ success: true });
           break;
@@ -475,16 +468,6 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
     const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
     // Local storage'dan kalıcı verileri al - Sadece şifreli parolalar ve API bilgileri
     const localData = await chrome.storage.local.get(['apiUrl', 'encryptedPasswords', 'refreshToken', 'authToken']);
-
-    // Debug log
-    console.log('[BG] handleGetPasswordsForSite - sessionData:', {
-      hasAuthToken: !!sessionData.authToken,
-      hasEncryptionKey: !!sessionData.encryptionKey
-    });
-    console.log('[BG] handleGetPasswordsForSite - localData:', {
-      hasAuthToken: !!localData.authToken,
-      hasRefreshToken: !!localData.refreshToken
-    });
 
     let token = sessionData.authToken as string | undefined;
     let encryptionKey = sessionData.encryptionKey as string | undefined;

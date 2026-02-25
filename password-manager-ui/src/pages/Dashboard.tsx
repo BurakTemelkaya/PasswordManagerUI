@@ -17,10 +17,10 @@ interface DashboardProps {
 
 const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, onSettings }: DashboardProps) => {
   const navigate = useNavigate();
-  // Using Context for state management
   const { passwords, decryptedPasswords, loading, error, fetchPasswords, checkForUpdates } = usePasswords();
   const { lock } = useVaultLock();
   const [searchQuery, setSearchQuery] = useState('');
+  const userName = localStorage.getItem('userName') || 'Kullanıcı';
 
   // Local error state for operations (like delete)
   const [localError, setLocalError] = useState<string | null>(null);
@@ -138,7 +138,7 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
           >
             ⚙️
           </button>
-          <span className="user-name">👤 Kullanıcı</span>
+          <span className="user-name">👤 {userName}</span>
 
           <button
             onClick={lock}

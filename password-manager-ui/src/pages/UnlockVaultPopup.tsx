@@ -124,8 +124,8 @@ const UnlockVaultPopup = ({ onUnlock, onLogout }: UnlockVaultPopupProps) => {
     };
 
     return (
-        <div className="popup-page" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', overflowY: 'auto' }}>
+        <div className="popup-page auth-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 0 }}>
+            <div className="auth-box" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', overflowY: 'auto', border: 'none', background: 'transparent' }}>
                 {/* Bitwarden-style User Avatar & Info */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
                     <div style={{

@@ -6,6 +6,7 @@ interface VaultLockContextType {
     unlock: (password: string) => Promise<boolean>;
     lock: () => void;
     resetIdleTimer: () => void;
+    checkLockStatus: () => void;
 }
 
 const VaultLockContext = createContext<VaultLockContextType | null>(null);
@@ -235,7 +236,7 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     return (
-        <VaultLockContext.Provider value={{ isLocked, unlock, lock, resetIdleTimer }}>
+        <VaultLockContext.Provider value={{ isLocked, unlock, lock, resetIdleTimer, checkLockStatus }}>
             {children}
         </VaultLockContext.Provider>
     );

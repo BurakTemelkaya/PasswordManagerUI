@@ -598,13 +598,6 @@ async function checkAuthAndLoadPasswords(): Promise<void> {
     });
 
     // Debug log
-    console.log('[PM Content] Response from background:', {
-      success: response?.success,
-      isAuthenticated: response?.isAuthenticated,
-      message: response?.message,
-      passwordCount: response?.passwords?.length
-    });
-
     if (response?.success && response.isAuthenticated !== false) {
       authState.isAuthenticated = true;
       authState.passwords = response.passwords || [];
@@ -1496,7 +1489,6 @@ function attachPasswordGenListeners() {
 
     // Sadece yeni parola alanlarında göster
     if (isNewPasswordField(field)) {
-      console.log('[PM-DEBUG] Attached password gen listener to field:', field.name || field.id || 'unnamed');
       field.addEventListener('focus', () => {
         // Küçük bir gecikme ile aç (autofill dropdown ile çakışma önleme)
         setTimeout(() => {
@@ -1514,24 +1506,20 @@ function attachPasswordGenListeners() {
  * Kaydetme kontrolü yap ve banner göster
  */
 async function handleAutoSaveCheck(username: string, password: string, hostname: string, isSignup: boolean) {
-  console.log('[PM-DEBUG] handleAutoSaveCheck called:', { username, hostname, isSignup, bannerShown: autoSaveBannerShown });
 
   // Banner zaten gösteriliyorsa tekrar gösterme
   if (autoSaveBannerShown) {
-    console.log('[PM-DEBUG] Banner already shown, skipping');
     return;
   }
 
   // Extension context kontrolü
   if (!chrome.runtime?.id) {
-    console.log('[PM-DEBUG] Extension context invalid, cannot show banner');
     return;
   }
 
   try {
     if (isSignup) {
       // Kayıt formu - her zaman banner göster
-      console.log('[PM-DEBUG] Signup form detected, showing banner directly');
       showAutoSaveBanner(username, password, hostname);
     } else {
       // Login formu - kasada var mı kontrol et
@@ -1548,7 +1536,6 @@ async function handleAutoSaveCheck(username: string, password: string, hostname:
       // Kasada varsa banner gösterme
     }
   } catch (error) {
-    console.warn('[PM] Auto-save check failed:', error);
   }
 }
 
@@ -1556,7 +1543,6 @@ async function handleAutoSaveCheck(username: string, password: string, hostname:
  * Bitwarden-tarzı auto-save banner göster
  */
 function showAutoSaveBanner(username: string, password: string, hostname: string) {
-  console.log('[PM-DEBUG] showAutoSaveBanner called:', { username, hostname });
   // Mevcut banner varsa kaldır
   const existing = document.querySelector('.pm-autosave-banner');
   if (existing) existing.remove();
@@ -1670,13 +1656,9 @@ function captureFormSubmit(form: HTMLFormElement) {
   if (form.getAttribute('data-pm-submit-attached')) return;
   form.setAttribute('data-pm-submit-attached', 'true');
 
-  console.log('[PM-DEBUG] captureFormSubmit attached to form:', form.action, form.id, form.className);
-
   // Method 1: Form submit event
   form.addEventListener('submit', () => {
-    console.log('[PM-DEBUG] Form SUBMIT event fired!');
     const creds = extractCredentialsFromForm(form);
-    console.log('[PM-DEBUG] Extracted creds from submit:', creds);
     if (creds) submitCredentials(creds.username, creds.password, isSignupForm(form));
   }, { capture: true });
 
@@ -1692,12 +1674,9 @@ function captureFormSubmit(form: HTMLFormElement) {
     const isLoginBtn = /giriş|login|sign.?in|log.?in|oturum|submit|gönder|devam|continue|enter|kayıt|register|sign.?up|oluştur|create/i.test(btnText);
 
     if (isLoginBtn || btn.getAttribute('type') === 'submit') {
-      console.log('[PM-DEBUG] Attached click listener to button:', btnText.substring(0, 40));
       btn.addEventListener('click', () => {
-        console.log('[PM-DEBUG] Button CLICK event fired:', btnText.substring(0, 40));
         setTimeout(() => {
           const creds = extractCredentialsFromForm(form);
-          console.log('[PM-DEBUG] Extracted creds from button click:', creds);
           if (creds) submitCredentials(creds.username, creds.password, isSignupForm(form));
         }, 100);
       }, { capture: true });
@@ -1712,10 +1691,8 @@ function captureFormSubmit(form: HTMLFormElement) {
 
     pwField.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        console.log('[PM-DEBUG] Enter key pressed in password field!');
         setTimeout(() => {
           const creds = extractCredentialsFromForm(form);
-          console.log('[PM-DEBUG] Extracted creds from Enter key:', creds);
           if (creds) submitCredentials(creds.username, creds.password, isSignupForm(form));
         }, 100);
       }
@@ -1829,17 +1806,12 @@ function extractCredentialsFromPage(): { username: string; password: string } | 
  * Credential'ları background'a gönder
  */
 function submitCredentials(username: string, password: string, isSignup: boolean) {
-  console.log('[PM-DEBUG] submitCredentials called:', { username, passwordLen: password?.length, isSignup });
   if (!chrome.runtime?.id) {
-    console.log('[PM-DEBUG] chrome.runtime.id missing! Extension context invalid.');
     return;
   }
   if (!password) {
-    console.log('[PM-DEBUG] Missing password, skipping');
     return;
   }
-
-  console.log('[PM-DEBUG] Sending CREDENTIAL_SUBMITTED to background');
 
   chrome.runtime.sendMessage({
     type: 'CREDENTIAL_SUBMITTED',
@@ -1861,8 +1833,6 @@ function submitCredentials(username: string, password: string, isSignup: boolean
 function attachFormSubmitListeners() {
   // Form'ları bul ve attach et
   const forms = document.querySelectorAll<HTMLFormElement>('form');
-  const allPasswordFields = document.querySelectorAll('input[type="password"]');
-  console.log('[PM-DEBUG] attachFormSubmitListeners: found', forms.length, 'forms,', allPasswordFields.length, 'password fields on page');
 
   forms.forEach(form => {
     const hasPassword = form.querySelector('input[type="password"]');
@@ -1875,7 +1845,6 @@ function attachFormSubmitListeners() {
   const allButtons = document.querySelectorAll<HTMLElement>(
     'button, input[type="submit"], input[type="button"], [role="button"]'
   );
-  console.log('[PM-DEBUG] Found', allButtons.length, 'total buttons on page');
 
   allButtons.forEach(btn => {
     if (btn.getAttribute('data-pm-orphan-click')) return;
@@ -1885,13 +1854,10 @@ function attachFormSubmitListeners() {
     const isLoginBtn = /giriş|login|sign.?in|log.?in|oturum|submit|gönder|devam|continue|kayıt|register|sign.?up|oluştur|create/i.test(btnText);
 
     if (isLoginBtn) {
-      console.log('[PM-DEBUG] Attached orphan click listener to button (no form):', btnText.substring(0, 40));
       btn.setAttribute('data-pm-orphan-click', 'true');
       btn.addEventListener('click', () => {
-        console.log('[PM-DEBUG] Orphan button CLICK fired:', btnText.substring(0, 40));
         setTimeout(() => {
           const creds = extractCredentialsFromPage();
-          console.log('[PM-DEBUG] Orphan button creds:', creds);
           if (creds) {
             const isSignup = /kayıt|register|sign.?up|oluştur|create|join/i.test(btnText);
             submitCredentials(creds.username, creds.password, isSignup);
@@ -1922,11 +1888,8 @@ function attachFormSubmitListeners() {
 // INITIALIZATION
 // ============================================
 function initialize() {
-  console.log('[PM-DEBUG] === CONTENT SCRIPT INITIALIZING ===', window.location.href, 'readyState:', document.readyState);
-
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('[PM-DEBUG] DOMContentLoaded fired, attaching listeners in 300ms...');
       setTimeout(() => {
         attachInputListeners();
         attachFormSubmitListeners();
@@ -1934,7 +1897,6 @@ function initialize() {
       }, 300);
     });
   } else {
-    console.log('[PM-DEBUG] DOM already loaded, attaching listeners in 300ms...');
     setTimeout(() => {
       attachInputListeners();
       attachFormSubmitListeners();
@@ -1956,9 +1918,7 @@ function initialize() {
 
   // Method 4: beforeunload - sayfa kapanmadan/yönlendirmeden önce credential'ları yakala
   window.addEventListener('beforeunload', () => {
-    console.log('[PM-DEBUG] beforeunload fired!');
     const creds = extractCredentialsFromPage();
-    console.log('[PM-DEBUG] beforeunload creds:', creds ? { username: creds.username, pwLen: creds.password.length } : null);
     if (creds && chrome.runtime?.id) {
       const forms = document.querySelectorAll<HTMLFormElement>('form');
       let isSignup = false;
@@ -1969,7 +1929,6 @@ function initialize() {
         }
       }
 
-      console.log('[PM-DEBUG] beforeunload sending CREDENTIAL_SUBMITTED');
       chrome.runtime.sendMessage({
         type: 'CREDENTIAL_SUBMITTED',
         username: creds.username,
@@ -1983,7 +1942,6 @@ function initialize() {
   // Web App'ten gelen cache refresh isteklerini yakala ve background'a aktar
   window.addEventListener('message', (event) => {
     if (event.data?.type === 'PM_EXTENSION_REFRESH_CACHE') {
-      console.log('[PM-DEBUG] Received PM_EXTENSION_REFRESH_CACHE from page, forwarding to background');
       if (chrome.runtime?.id) {
         chrome.runtime.sendMessage({ type: 'CLEAR_CACHE' }).catch(() => { });
       }
@@ -2004,12 +1962,9 @@ function initialize() {
     }
 
     // Pending credential var mı kontrol et (sayfa yönlendirmesinden sonra)
-    console.log('[PM-DEBUG] Checking for pending credentials...');
     chrome.runtime.sendMessage({ type: 'GET_PENDING_CREDENTIALS' })
       .then((response: any) => {
-        console.log('[PM-DEBUG] GET_PENDING_CREDENTIALS response:', response);
         if (response?.success && response.hasPending) {
-          console.log('[PM-DEBUG] Found pending credentials, showing banner...');
           handleAutoSaveCheck(response.username, response.password, response.hostname, response.isSignup);
         }
       })

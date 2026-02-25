@@ -6,6 +6,7 @@ import { config } from '../helpers/config';
 import type { UserForLoginDto } from '../types';
 import { ApiError } from '../types';
 import '../styles/auth.css';
+import { useVaultLock } from '../context/VaultLockContext';
 
 interface LocationState {
   message?: string;
@@ -42,6 +43,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state as LocationState) || {};
+  const { checkLockStatus } = useVaultLock();
 
   const [formData, setFormData] = useState({
     userName: '',
@@ -212,11 +214,15 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
         }
       }
 
+      // Update Vault lock context before navigating
+      checkLockStatus();
+
       // Extension popup'ta mı diye kontrol et
       if (onLoginSuccess) {
         onLoginSuccess();
       } else {
         // Normal web app'ta - router'a yönlendir
+        checkLockStatus();
         navigate('/');
       }
     } catch (err: unknown) {

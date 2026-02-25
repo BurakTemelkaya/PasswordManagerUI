@@ -188,25 +188,20 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        const storedRefreshToken = localStorage.getItem('refreshToken');
-
-        // Mevcut JWT token ile yeni token al
-        // Uzantı popup'ından gelen cross-site isteklerde cookieler çalışmayabileceği için, POST ile deneyelim
-        const response = await axios.post(
+        // Mevcut JWT token ile yeni token al (GET metodu)
+        const response = await axios.get(
           `${config.api.baseURL}/Auth/RefreshToken`,
-          { refreshToken: storedRefreshToken }, // Body'de de refreshToken yolluyoruz
           {
             withCredentials: true, // Cookie'leri gönder
             headers: {
-              'Authorization': `Bearer ${currentToken}`,
-              'Content-Type': 'application/json'
+              'Authorization': `Bearer ${currentToken}`
             }
           }
         );
 
-        // API response: { token, expirationDate } veya { accessToken: { token, ... } }
-        const newAccessToken = response.data.token || response.data.accessToken?.token;
-        const newExpiration = response.data.expirationDate || response.data.accessToken?.expirationDate;
+        // API response: { token, expirationDate }
+        const newAccessToken = response.data.token;
+        const newExpiration = response.data.expirationDate;
 
         if (newAccessToken) {
           localStorage.setItem('authToken', newAccessToken);
