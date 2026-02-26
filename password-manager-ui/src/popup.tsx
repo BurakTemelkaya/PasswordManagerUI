@@ -7,7 +7,7 @@ import './styles/popup.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import DashboardPopup from './pages/DashboardPopup';
-import AddPassword from './pages/AddPassword';
+import AddPasswordPopup from './pages/AddPasswordPopup';
 import ViewPasswordPopup from './pages/ViewPasswordPopup';
 import EditPasswordPopup from './pages/EditPasswordPopup';
 import Settings from './pages/Settings';
@@ -248,7 +248,7 @@ const Popup: React.FC = () => {
   if (state.page === 'add-password') {
     return (
       <div className="popup-page popup-form">
-        <AddPassword
+        <AddPasswordPopup
           onSuccess={handleAddPasswordSuccess}
           onCancel={handleBackToDashboard}
         />

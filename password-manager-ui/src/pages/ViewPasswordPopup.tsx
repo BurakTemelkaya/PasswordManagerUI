@@ -167,7 +167,7 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
   const faviconUrl = decrypted?.websiteUrl ? getFaviconUrl(decrypted.websiteUrl) : null;
 
   return (
-    <div className="popup-page popup-detail-container">
+    <div className="popup-detail-container" style={{ flex: 1 }}>
       {/* Header */}
       <header className="popup-header">
         <button onClick={onBack} className="popup-back-btn">← Geri</button>
@@ -186,10 +186,10 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
               <span className="popup-password-favicon-letter">{decrypted?.name?.charAt(0).toUpperCase() || 'P'}</span>
             )}
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: '14px' }}>{decrypted?.name}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{decrypted?.name}</div>
             {decrypted?.websiteUrl && (
-              <a href={decrypted.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: 'var(--pm-primary)', textDecoration: 'none' }}>
+              <a href={decrypted.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: '12px', color: 'var(--pm-primary)', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {decrypted.websiteUrl}
               </a>
             )}
