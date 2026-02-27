@@ -33,37 +33,28 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const checkLockStatus = () => {
-        // Ayarları oku
-        const vaultTimeout = parseInt(localStorage.getItem('vaultTimeout') || '5', 10);
 
         let encryptionKey = sessionStorage.getItem('encryptionKey');
 
-        // Eğer session'da yoksa ve timeout logic'e göre persist edilmiş olabilir mi?
+        // Eğer session'da yoksa chrome.storage.session'dan kontrol et
+        // Popup her açıldığında sessionStorage boş olur, ancak chrome.storage.session
+        // tarayıcı kapanana kadar kalıcıdır (tüm timeout tipleri için)
         if (!encryptionKey) {
-
-            // CASE: Browser Restart (Vault Timeout = -1)
-            // Bu durumda key chrome.storage.session'da olabilir (Background page keep-alive)
-            // Ancak popup kapanıp açıldığında chrome.storage.session durur.
-            if (vaultTimeout === -1) {
-                if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-                    chrome.storage.session.get(['encryptionKey']).then((data) => {
-                        if (data.encryptionKey) {
-                            console.log('🔓 Kasa açık (On Restart Policy)');
-                            // Restore to session
-                            sessionStorage.setItem('encryptionKey', data.encryptionKey as string);
-                            setIsLocked(false);
-                            resetIdleTimer();
-                        } else {
-                            setIsLocked(true);
-                        }
-                    });
-                    // Async olduğu için burada return edemeyiz, aşağıda default lock durumu oluşur
-                    // Ancak state update ile düzelir.
-                }
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                chrome.storage.session.get(['encryptionKey']).then((data) => {
+                    if (data.encryptionKey) {
+                        console.log('🔓 Kasa açık (chrome.storage.session restore)');
+                        // Restore to sessionStorage (UI components use this)
+                        sessionStorage.setItem('encryptionKey', data.encryptionKey as string);
+                        setIsLocked(false);
+                        resetIdleTimer();
+                    } else {
+                        setIsLocked(true);
+                    }
+                });
+                // Async olduğu için burada return edemeyiz, aşağıda default lock durumu oluşur
+                // Ancak state update ile düzelir.
             }
-
-            // Timer seçenekleri için session storage kullanılır
-            // Encryption key asla diske yazılmaz - sadece RAM'de tutulur
         }
 
         const authToken = localStorage.getItem('authToken');
@@ -71,9 +62,8 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
         // Güvenlik: Encryption key asla diske yazılmaz
 
         if (authToken && !encryptionKey) {
-            // Eğer "On Restart" ile async yükleniyorsa hemen kilitli deme, bekle...
-            // Basitlik için varsayılan true, async yüklenince false olur.
-            if (vaultTimeout === -1 && typeof chrome !== 'undefined' && chrome.storage?.session) {
+            // chrome.storage.session async check yapılıyorsa hemen kilitli deme, bekle...
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
                 // CheckStatus içinde async handled
             } else {
                 setIsLocked(true);

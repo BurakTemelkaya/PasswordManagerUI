@@ -48,6 +48,9 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
   const [lockOnBrowserClose, setLockOnBrowserClose] = useState<boolean>(true);
   const [lockOnSystemLock, setLockOnSystemLock] = useState<boolean>(false);
 
+  // Excluded Sites
+  const [excludedSites, setExcludedSites] = useState<string[]>([]);
+
   // Import/Export
   const [importLoading, setImportLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -78,6 +81,20 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
 
     const savedLockOnSystem = localStorage.getItem('lockOnSystemLock');
     if (savedLockOnSystem !== null) setLockOnSystemLock(savedLockOnSystem === 'true');
+
+    // Excluded sites yükle
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get(['excludedSites']).then((result) => {
+        if (result.excludedSites && Array.isArray(result.excludedSites)) {
+          setExcludedSites(result.excludedSites as string[]);
+        }
+      });
+    } else {
+      const saved = localStorage.getItem('excludedSites');
+      if (saved) {
+        try { setExcludedSites(JSON.parse(saved)); } catch { /* ignore */ }
+      }
+    }
 
     setUserName(storedUserName);
     setEncryptionKey(storedEncryptionKey);
@@ -518,6 +535,55 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
               </div>
 
 
+
+              {/* Hariç Tutulan Siteler */}
+              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+                <h3 style={{ marginBottom: '12px', fontSize: '15px' }}>🚫 Hariç Tutulan Siteler</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  Bu sitelerde otomatik kaydetme banner'ı gösterilmez.
+                </p>
+                {excludedSites.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                    Henüz hariç tutulan site yok.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {excludedSites.map((site, index) => (
+                      <div key={index} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'var(--bg-main)',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)'
+                      }}>
+                        <span style={{ fontSize: '13px' }}>🌐 {site}</span>
+                        <button
+                          onClick={() => {
+                            const updated = excludedSites.filter((_, i) => i !== index);
+                            setExcludedSites(updated);
+                            if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                              chrome.storage.local.set({ excludedSites: updated });
+                            }
+                            localStorage.setItem('excludedSites', JSON.stringify(updated));
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--pm-danger, #f85149)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            padding: '4px 8px'
+                          }}
+                        >
+                          Kaldır
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={saveSecuritySettings}

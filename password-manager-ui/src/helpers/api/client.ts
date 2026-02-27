@@ -251,7 +251,7 @@ function forceLogout() {
   localStorage.removeItem('passwords');
 
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.session?.remove(['authToken', 'encryptionKey']);
+    chrome.storage.session?.remove(['authToken']);
     chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords', 'tokenExpiration', 'refreshTokenExpiration']);
   }
 

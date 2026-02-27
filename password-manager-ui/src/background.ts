@@ -216,7 +216,7 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
       // 401 hala devam ediyorsa oturumu sonlandır
       if (response.status === 401) {
         console.log('🔴 Token yenileme başarısız, oturum sonlandırılıyor...');
-        await chrome.storage.session.remove(['authToken', 'encryptionKey']);
+        await chrome.storage.session.remove(['authToken']);
         await chrome.storage.local.remove(['refreshToken', 'refreshTokenExpiration', 'passwords']);
       }
 
@@ -401,7 +401,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           break;
 
         case 'CHECK_CREDENTIAL_EXISTS':
-          await handleCheckCredentialExists(request.hostname, request.username, sendResponse);
+          await handleCheckCredentialExists(request.hostname, request.username, request.password, sendResponse);
+          break;
+
+        case 'UPDATE_PASSWORD':
+          await handleUpdatePassword(request, sendResponse);
           break;
 
         case 'CREDENTIAL_SUBMITTED':
@@ -522,30 +526,32 @@ async function handleGetPasswordsForSite(hostname: string, sendResponse: (respon
       return;
     }
 
-    // CACHE STRATEGY:
-    // 1. Önce storage'daki 'encryptedPasswords' (Şifreli Önbellek) kontrol et
-    let encryptedPasswords = localData.encryptedPasswords as EncryptedPassword[] | undefined;
+    // CACHE STRATEGY: API-first, cache fallback
+    // Her zaman API'den güncel veriyi çekmeye çalış
+    // API başarısız olursa cache'i kullan
+    let encryptedPasswords: EncryptedPassword[] | undefined;
+    const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
 
-    // 2. Cache yoksa API'den çek
-    if (!encryptedPasswords || encryptedPasswords.length === 0) {
-      console.log('🌐 API\'den parolalar çekiliyor...');
-      const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
-      const fetched = await fetchPasswords(token as string, apiUrl);
+    // API'den çekmeyi dene
+    const fetched = await fetchPasswords(token as string, apiUrl);
 
-      if (fetched) {
-        encryptedPasswords = fetched;
-        // API'den gelen veriyi ŞİFRELİ olarak kaydet (Plaintext kaydetme!)
-        if (encryptedPasswords.length > 0) {
-          await chrome.storage.local.set({ encryptedPasswords });
-          // Varsa eski 'passwords' (plaintext) verisini sil (Migration)
-          await chrome.storage.local.remove(['passwords']);
-        }
+    if (fetched) {
+      encryptedPasswords = fetched;
+      // API'den gelen veriyi şifreli olarak cache'e kaydet
+      if (encryptedPasswords.length > 0) {
+        await chrome.storage.local.set({ encryptedPasswords });
+        await chrome.storage.local.remove(['passwords']);
       } else {
-        // Fetch failed
-        encryptedPasswords = [];
+        // API boş döndüyse cache'i de temizle
+        await chrome.storage.local.remove(['encryptedPasswords', 'passwords']);
       }
     } else {
-      console.log('📦 Şifreli önbellekten yüklendi');
+      // API başarısız — cache'e düş
+      console.log('📦 API başarısız, şifreli önbellekten yükleniyor...');
+      encryptedPasswords = localData.encryptedPasswords as EncryptedPassword[] | undefined;
+      if (!encryptedPasswords) {
+        encryptedPasswords = [];
+      }
     }
 
     // 3. Verileri HAFIZADA çöz (Diske yazma!)
@@ -846,9 +852,23 @@ async function handleSavePassword(
 async function handleCheckCredentialExists(
   hostname: string,
   username: string,
-  sendResponse: (response: { success: boolean; exists: boolean }) => void
+  password: string | undefined,
+  sendResponse: (response: { success: boolean; exists: boolean; passwordChanged?: boolean; passwordId?: string; excludedSite?: boolean }) => void
 ) {
   try {
+    // Excluded sites kontrolü
+    const settingsData = await chrome.storage.local.get(['excludedSites']);
+    const excludedSites = (settingsData.excludedSites as string[] | undefined) || [];
+    const normalizedHostname = hostname.replace(/^www\./, '');
+
+    if (excludedSites.some(site => {
+      const normalizedSite = site.replace(/^www\./, '');
+      return normalizedHostname === normalizedSite || normalizedHostname.endsWith('.' + normalizedSite);
+    })) {
+      sendResponse({ success: true, exists: false, excludedSite: true });
+      return;
+    }
+
     const sessionData = await chrome.storage.session.get(['encryptionKey']);
     const localData = await chrome.storage.local.get(['encryptedPasswords']);
     const encryptionKey = sessionData.encryptionKey as string | undefined;
@@ -869,7 +889,14 @@ async function handleCheckCredentialExists(
       const decrypted = await decryptPassword(encrypted, encryptionKey);
       if (decrypted && scoreHostnameMatch(decrypted.websiteUrl, hostname) > 0) {
         if (decrypted.username.toLowerCase() === username.toLowerCase()) {
-          sendResponse({ success: true, exists: true });
+          // Username eşleşti — parola değişmiş mi kontrol et
+          const passwordChanged = password ? (decrypted.password !== password) : false;
+          sendResponse({
+            success: true,
+            exists: true,
+            passwordChanged: passwordChanged,
+            passwordId: encrypted.id
+          });
           return;
         }
       }
@@ -879,6 +906,121 @@ async function handleCheckCredentialExists(
   } catch (error) {
     console.error('Check credential exists error:', error);
     sendResponse({ success: false, exists: false });
+  }
+}
+
+// ============================================
+// AUTO-SAVE: UPDATE PASSWORD HANDLER
+// ============================================
+
+async function handleUpdatePassword(
+  request: { passwordId: string; name: string; username: string; password: string; websiteUrl: string },
+  sendResponse: (response: { success: boolean; message?: string }) => void
+) {
+  try {
+    const sessionData = await chrome.storage.session.get(['authToken', 'encryptionKey']);
+    const localData = await chrome.storage.local.get(['apiUrl', 'authToken']);
+
+    let token = sessionData.authToken as string | undefined;
+    const encryptionKey = sessionData.encryptionKey as string | undefined;
+
+    if (!token && localData.authToken) {
+      token = localData.authToken as string;
+      await chrome.storage.session.set({ authToken: token });
+    }
+
+    if (!token) {
+      sendResponse({ success: false, message: 'Giriş yapılmamış' });
+      return;
+    }
+
+    if (!encryptionKey) {
+      sendResponse({ success: false, message: 'Kasa kilitli' });
+      return;
+    }
+
+    // IV üret ve şifrele
+    const iv = generateIV();
+    const encryptedName = await encryptAESForSave(request.name || request.websiteUrl || 'Otomatik Kayıt', encryptionKey, iv);
+    const encryptedUserName = await encryptAESForSave(request.username, encryptionKey, iv);
+    const encryptedPassword = await encryptAESForSave(request.password, encryptionKey, iv);
+    const encryptedDescription = await encryptAESForSave('Otomatik güncellendi', encryptionKey, iv);
+    const encryptedWebSiteUrl = await encryptAESForSave(request.websiteUrl, encryptionKey, iv);
+
+    const apiUrl = (localData.apiUrl as string) || config.api.baseURL;
+
+    const putResponse = await fetch(`${apiUrl}/Password`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id: request.passwordId,
+        encryptedName,
+        encryptedUserName,
+        encryptedPassword,
+        encryptedDescription,
+        encryptedWebSiteUrl,
+        iv
+      })
+    });
+
+    if (!putResponse.ok) {
+      if (putResponse.status === 401) {
+        const refreshData = await chrome.storage.local.get(['refreshToken']);
+        const refreshToken = refreshData.refreshToken as string | undefined;
+        if (refreshToken) {
+          const newTokens = await refreshAccessToken(refreshToken, apiUrl);
+          if (newTokens?.accessToken) {
+            const retryResponse = await fetch(`${apiUrl}/Password`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${newTokens.accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                id: request.passwordId,
+                encryptedName,
+                encryptedUserName,
+                encryptedPassword,
+                encryptedDescription,
+                encryptedWebSiteUrl,
+                iv
+              })
+            });
+            if (!retryResponse.ok) {
+              sendResponse({ success: false, message: 'Güncelleme başarısız' });
+              return;
+            }
+          } else {
+            sendResponse({ success: false, message: 'Oturum süresi doldu' });
+            return;
+          }
+        } else {
+          sendResponse({ success: false, message: 'Oturum süresi doldu' });
+          return;
+        }
+      } else {
+        sendResponse({ success: false, message: `API hatası: ${putResponse.status}` });
+        return;
+      }
+    }
+
+    // Cache'i güncelle
+    console.log('✅ Parola otomatik güncellendi');
+    const freshPasswords = await fetchPasswords(token, apiUrl);
+    if (freshPasswords) {
+      await chrome.storage.local.set({ encryptedPasswords: freshPasswords });
+    }
+
+    // Pending credentials temizle — tekrar banner gösterilmesin
+    pendingCredentials = null;
+
+    sendResponse({ success: true, message: 'Parola güncellendi' });
+  } catch (error) {
+    console.error('Update password error:', error);
+    sendResponse({ success: false, message: String(error) });
   }
 }
 
@@ -913,22 +1055,40 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     // Pending credential varsa temizleme - yeni sayfaya taşıyacağız
   }
 
-  // Sayfa yüklendiğinde pending credential varsa content script'e bildir
+  // Sayfa yüklendiğinde pending credential varsa:
+  // Önce sayfada hala login formu var mı kontrol et, yoksa banner göster
   if (changeInfo.status === 'complete' && pendingCredentials && pendingCredentials.tabId === tabId) {
     // 30 saniye zaman aşımı
     if (Date.now() - pendingCredentials.timestamp < 30000) {
       // Content script'in yüklenmesi için kısa bir gecikme
-      setTimeout(() => {
+      setTimeout(async () => {
         if (!pendingCredentials || pendingCredentials.tabId !== tabId) return;
-        chrome.tabs.sendMessage(tabId, {
-          type: 'SHOW_AUTOSAVE_BANNER',
-          username: pendingCredentials.username,
-          password: pendingCredentials.password,
-          hostname: pendingCredentials.hostname,
-          isSignup: pendingCredentials.isSignup
-        }).catch(() => {
-          console.warn('[PM BG] Could not send autosave banner to tab', tabId);
-        });
+
+        try {
+          // Önce sayfada login formu var mı kontrol et
+          const pageCheck = await chrome.tabs.sendMessage(tabId, {
+            type: 'CHECK_PAGE_HAS_LOGIN_FORM'
+          });
+
+          // Sayfada hala login formu varsa → giriş başarısız olabilir, banner gösterme
+          if (pageCheck?.hasLoginForm) {
+            console.log('[PM BG] Sayfada hala login formu var, banner gösterilmiyor');
+            return;
+          }
+
+          // Login formu yok → giriş başarılı, banner göster
+          chrome.tabs.sendMessage(tabId, {
+            type: 'SHOW_AUTOSAVE_BANNER',
+            username: pendingCredentials.username,
+            password: pendingCredentials.password,
+            hostname: pendingCredentials.hostname,
+            isSignup: pendingCredentials.isSignup
+          }).catch(() => {
+            console.warn('[PM BG] Could not send autosave banner to tab', tabId);
+          });
+        } catch {
+          console.warn('[PM BG] Could not check page for login form', tabId);
+        }
       }, 800);
     } else {
       pendingCredentials = null;

@@ -998,12 +998,9 @@ async function showDropdown(input: HTMLInputElement, inputType: 'password' | 'us
             // Sadece username doldur, şifreyi hatırla
             fillUsernameOnly(pwd.username);
             lastFilledEntry = pwd;
-          } else if (inputType === 'password' && findUsernameFields().length === 0) {
-            // Sadece password alanı var (multi-step 2. adım)
-            fillPasswordOnly(pwd.password);
-            lastFilledEntry = null;
           } else {
-            // Normal: hem username hem password doldur
+            // Password veya genel alan: hem username hem password doldur
+            // fillCredentials kendi içinde form'daki tüm text input'ları arar
             fillCredentials(pwd.username, pwd.password);
             lastFilledEntry = null;
           }
@@ -1205,6 +1202,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       hasPasswordField: findPasswordFields().length > 0,
       hasUsernameField: findUsernameFields().length > 0
     });
+  }
+
+  // Background login formu kontrol mesajı — banner gösterilmeden önce
+  if (message.type === 'CHECK_PAGE_HAS_LOGIN_FORM') {
+    const passwordFields = document.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    const hasLoginForm = Array.from(passwordFields).some(f => isVisible(f));
+    sendResponse({ hasLoginForm });
+    return true;
   }
 
   // Background'dan gelen auto-save banner gösterme mesajı
@@ -1505,7 +1510,7 @@ function attachPasswordGenListeners() {
 /**
  * Kaydetme kontrolü yap ve banner göster
  */
-async function handleAutoSaveCheck(username: string, password: string, hostname: string, isSignup: boolean) {
+async function handleAutoSaveCheck(username: string, password: string, hostname: string, _isSignup: boolean) {
 
   // Banner zaten gösteriliyorsa tekrar gösterme
   if (autoSaveBannerShown) {
@@ -1518,23 +1523,31 @@ async function handleAutoSaveCheck(username: string, password: string, hostname:
   }
 
   try {
-    if (isSignup) {
-      // Kayıt formu - her zaman banner göster
-      showAutoSaveBanner(username, password, hostname);
-    } else {
-      // Login formu - kasada var mı kontrol et
-      const response = await chrome.runtime.sendMessage({
-        type: 'CHECK_CREDENTIAL_EXISTS',
-        hostname: hostname,
-        username: username
-      });
+    // Credential kontrolü yap (hem signup hem login için)
+    const response = await chrome.runtime.sendMessage({
+      type: 'CHECK_CREDENTIAL_EXISTS',
+      hostname: hostname,
+      username: username,
+      password: password
+    });
 
-      if (response?.success && !response.exists) {
-        // Kasada yok - banner göster
-        showAutoSaveBanner(username, password, hostname);
-      }
-      // Kasada varsa banner gösterme
+    // Excluded site ise hiçbir şey gösterme
+    if (response?.excludedSite) {
+      return;
     }
+
+    if (response?.success && response.exists) {
+      // Kasada var — parola değişmiş mi?
+      if (response.passwordChanged && response.passwordId) {
+        // Aynı kullanıcı, farklı parola → güncelleme banner'ı
+        showAutoSaveBanner(username, password, hostname, 'update', response.passwordId);
+      }
+      // Aynı kullanıcı, aynı parola → hiçbir şey gösterme
+    } else if (response?.success && !response.exists) {
+      // Kasada yok → kaydetme banner'ı
+      showAutoSaveBanner(username, password, hostname, 'save');
+    }
+    // success false ise (kasa kilitli vb.) banner gösterme
   } catch (error) {
   }
 }
@@ -1542,7 +1555,7 @@ async function handleAutoSaveCheck(username: string, password: string, hostname:
 /**
  * Bitwarden-tarzı auto-save banner göster
  */
-function showAutoSaveBanner(username: string, password: string, hostname: string) {
+function showAutoSaveBanner(username: string, password: string, hostname: string, mode: 'save' | 'update' = 'save', passwordId?: string) {
   // Mevcut banner varsa kaldır
   const existing = document.querySelector('.pm-autosave-banner');
   if (existing) existing.remove();
@@ -1553,6 +1566,11 @@ function showAutoSaveBanner(username: string, password: string, hostname: string
   banner.className = 'pm-autosave-banner';
 
   const displayHost = hostname.replace(/^www\./, '');
+  const isUpdate = mode === 'update';
+
+  const bannerTitle = isUpdate ? 'Parola değiştirildi. Güncellemek ister misiniz?' : 'Bu parolayı kaydetmek ister misiniz?';
+  const actionBtnText = isUpdate ? 'Güncelle' : 'Kaydet';
+  const actionBtnColor = isUpdate ? '#e09f3e' : '#175ddc';
 
   banner.innerHTML = `
     <button class="pm-autosave-close" title="Kapat">✕</button>
@@ -1562,44 +1580,52 @@ function showAutoSaveBanner(username: string, password: string, hostname: string
       </svg>
       <div class="pm-autosave-text">
         <div><strong>Parola Yöneticisi</strong></div>
-        <div>Bu parolayı kaydetmek ister misiniz?</div>
-        <input type="text" class="pm-autosave-username-input" value="${username && username !== '-' ? username : ''}" placeholder="Kullanıcı adı veya E-posta" />
-        <div class="pm-autosave-details">${displayHost}</div>
+        <div>${bannerTitle}</div>
+        ${!isUpdate ? `<input type="text" class="pm-autosave-username-input" value="${username && username !== '-' ? username : ''}" placeholder="Kullanıcı adı veya E-posta" />` : ''}
+        <div class="pm-autosave-details">${isUpdate ? `👤 ${username} — ` : ''}${displayHost}</div>
       </div>
     </div>
     <div class="pm-autosave-actions">
-      <button class="pm-autosave-btn pm-save">Kaydet</button>
+      <button class="pm-autosave-btn pm-save" style="background:${actionBtnColor}">${actionBtnText}</button>
       <button class="pm-autosave-btn pm-dismiss">Hayır</button>
+      <button class="pm-autosave-btn pm-never" style="background:transparent;color:#c25151;border:1px solid #c25151;font-size:11px">Asla Kaydetme</button>
     </div>
   `;
 
   document.body.appendChild(banner);
 
-  // Kaydet butonu
+  // Kaydet / Güncelle butonu
   const saveBtn = banner.querySelector('.pm-save');
   saveBtn?.addEventListener('click', async () => {
     const btn = saveBtn as HTMLButtonElement;
 
-    // Inputtan kullanıcı adını oku
+    // Inputtan kullanıcı adını oku (sadece save modunda)
     const inputEl = banner.querySelector('.pm-autosave-username-input') as HTMLInputElement;
     const finalUsername = (inputEl ? inputEl.value.trim() : username) || '-';
 
     btn.disabled = true;
-    btn.textContent = 'Kaydediliyor...';
+    btn.textContent = isUpdate ? 'Güncelleniyor...' : 'Kaydediliyor...';
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'SAVE_PASSWORD',
+      const messageType = isUpdate ? 'UPDATE_PASSWORD' : 'SAVE_PASSWORD';
+      const messageData: Record<string, string> = {
+        type: messageType,
         name: displayHost,
         username: finalUsername,
         password: password,
         websiteUrl: `https://${hostname}`
-      });
+      };
+
+      if (isUpdate && passwordId) {
+        messageData.passwordId = passwordId;
+      }
+
+      const response = await chrome.runtime.sendMessage(messageData);
 
       if (response?.success) {
-        btn.textContent = '✓ Kaydedildi';
+        btn.textContent = isUpdate ? '✓ Güncellendi' : '✓ Kaydedildi';
         btn.style.background = '#51c28a';
-        showToast('Parola kasaya kaydedildi', 'success');
+        showToast(isUpdate ? 'Parola güncellendi' : 'Parola kasaya kaydedildi', 'success');
         // Pending credential'ları temizle
         chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_CREDENTIALS' }).catch(() => { });
         setTimeout(() => closeAutoSaveBanner(banner), 1500);
@@ -1607,10 +1633,10 @@ function showAutoSaveBanner(username: string, password: string, hostname: string
         btn.textContent = 'Hata!';
         btn.style.background = '#c25151';
         btn.disabled = false;
-        showToast(response?.message || 'Kaydetme başarısız', 'error');
+        showToast(response?.message || (isUpdate ? 'Güncelleme başarısız' : 'Kaydetme başarısız'), 'error');
         setTimeout(() => {
-          btn.textContent = 'Kaydet';
-          btn.style.background = '#175ddc';
+          btn.textContent = actionBtnText;
+          btn.style.background = actionBtnColor;
         }, 2000);
       }
     } catch (error) {
@@ -1618,8 +1644,8 @@ function showAutoSaveBanner(username: string, password: string, hostname: string
       btn.disabled = false;
       showToast('Bağlantı hatası', 'error');
       setTimeout(() => {
-        btn.textContent = 'Kaydet';
-        btn.style.background = '#175ddc';
+        btn.textContent = actionBtnText;
+        btn.style.background = actionBtnColor;
       }, 2000);
     }
   });
@@ -1628,6 +1654,26 @@ function showAutoSaveBanner(username: string, password: string, hostname: string
   banner.querySelector('.pm-dismiss')?.addEventListener('click', () => {
     chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_CREDENTIALS' }).catch(() => { });
     closeAutoSaveBanner(banner);
+  });
+
+  // Asla Kaydetme butonu
+  banner.querySelector('.pm-never')?.addEventListener('click', async () => {
+    try {
+      const result = await chrome.storage.local.get(['excludedSites']);
+      const excludedSites: string[] = (result.excludedSites as string[]) || [];
+      const normalizedHostname = hostname.replace(/^www\./, '');
+
+      if (!excludedSites.includes(normalizedHostname)) {
+        excludedSites.push(normalizedHostname);
+        await chrome.storage.local.set({ excludedSites });
+      }
+
+      showToast(`${normalizedHostname} hariç tutulan sitelere eklendi`, 'success');
+      chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_CREDENTIALS' }).catch(() => { });
+      closeAutoSaveBanner(banner);
+    } catch (err) {
+      showToast('Kaydetme hatası', 'error');
+    }
   });
 
   // Kapat butonu
@@ -1813,6 +1859,9 @@ function submitCredentials(username: string, password: string, isSignup: boolean
     return;
   }
 
+  // Mevcut URL'yi kaydet — giriş başarılıysa URL değişir
+  const submitUrl = window.location.href;
+
   chrome.runtime.sendMessage({
     type: 'CREDENTIAL_SUBMITTED',
     username: username,
@@ -1822,8 +1871,25 @@ function submitCredentials(username: string, password: string, isSignup: boolean
   }).catch(() => { });
 
   // SPA'lar için: Sayfa yönlendirmezse banner'ı burada da göster
+  // Bitwarden yaklaşımı: Login formu hala görünürse giriş başarısız
   setTimeout(() => {
-    handleAutoSaveCheck(username, password, currentHostname, isSignup);
+    // Giriş başarısını tespit et:
+    // Login formu (password alanı) hala görünürse → başarısız
+    // Login formu kaybolmuşsa veya URL değiştiyse → başarılı
+    const urlChanged = window.location.href !== submitUrl;
+    const passwordFields = document.querySelectorAll<HTMLInputElement>('input[type="password"]');
+    const hasVisiblePasswordField = Array.from(passwordFields).some(f => isVisible(f));
+
+    if (urlChanged && !hasVisiblePasswordField) {
+      // URL değişti VE login formu yok — kesinlikle başarılı
+      handleAutoSaveCheck(username, password, currentHostname, isSignup);
+    } else if (!hasVisiblePasswordField) {
+      // SPA: URL değişmedi ama form kayboldu — başarılı
+      handleAutoSaveCheck(username, password, currentHostname, isSignup);
+    } else {
+      // Password alanı hala görünür — giriş başarısız
+      chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_CREDENTIALS' }).catch(() => { });
+    }
   }, 1500);
 }
 
