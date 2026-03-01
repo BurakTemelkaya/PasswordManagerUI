@@ -129,19 +129,31 @@ export const logout = async (): Promise<void> => {
     console.warn('⚠️ Refresh token iptal edilemedi, yine de çıkış yapılıyor:', error);
   }
 
-  // Local storage'ı temizle
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('tokenExpiration');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('refreshTokenExpiration');
+  // Tamamen temizle
+  localStorage.clear();
+  sessionStorage.clear();
 
-  // Encryption key sessionStorage'da tutuluyor
-  sessionStorage.removeItem('encryptionKey');
-  // Eski versiyonlardan kalma varsa temizle
-  localStorage.removeItem('encryptionKey');
-
-  localStorage.removeItem('userName');
-  localStorage.removeItem('passwords');
+  // Extension kalıntılarını da temizle
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    try {
+      chrome.storage.local.remove([
+        'encryptedPasswords',
+        'cachedPasswords',
+        'authToken',
+        'refreshToken',
+        'userName',
+        'userId',
+        'encryptionKeyCheck',
+        'kdfSalt',
+        'kdfIterations',
+        'apiUrl',
+        'lastActivity'
+      ]);
+      chrome.storage.session?.clear();
+    } catch (storageErr) {
+      console.warn('Chrome storage temizleme hatası:', storageErr);
+    }
+  }
 
   console.log('✅ Logout tamamlandı');
 };

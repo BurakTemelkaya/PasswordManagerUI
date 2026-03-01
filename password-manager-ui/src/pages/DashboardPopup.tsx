@@ -25,7 +25,7 @@ interface DashboardProps {
 
 const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenerator, currentUrl }: DashboardProps) => {
   const navigate = useNavigate();
-  const { lock } = useVaultLock();
+  const { lock, isLocked } = useVaultLock();
   const [passwords, setPasswords] = useState<Password[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +53,14 @@ const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenera
     }
   }, [currentUrl]);
 
+  // isLocked=false olduğunda (giriş veya kilit açma) parolaları yükle.
+  // Sadece mount'ta değil, isLocked değiştiğinde de yeniden fetch yap.
+  // Bu, kasa açılmadan önce component mount olduğunda yaşanan race condition'u önler.
   useEffect(() => {
-    fetchPasswords();
-  }, []);
+    if (!isLocked) {
+      fetchPasswords();
+    }
+  }, [isLocked]);
 
   const fetchPasswords = async () => {
     try {

@@ -18,7 +18,7 @@ interface DashboardProps {
 const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, onSettings }: DashboardProps) => {
   const navigate = useNavigate();
   const { passwords, decryptedPasswords, loading, error, fetchPasswords, checkForUpdates } = usePasswords();
-  const { lock } = useVaultLock();
+  const { lock, clearVaultState } = useVaultLock();
   const [searchQuery, setSearchQuery] = useState('');
   const userName = localStorage.getItem('userName') || 'Kullanıcı';
 
@@ -76,7 +76,9 @@ const Dashboard = ({ onLogout, onAddPassword, onViewPassword, onEditPassword, on
     if (onLogout) {
       onLogout();
     } else {
-      // Normal web app'ta - router'a yönlendir
+      // clearVaultState → isLocked=true → PasswordContext eski veriyi temizler
+      // Ardından navigate ile login'e git (sayfa yenileme gerekmez)
+      clearVaultState();
       navigate('/login');
     }
   };

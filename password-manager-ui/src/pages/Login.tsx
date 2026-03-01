@@ -110,8 +110,30 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
     try {
       setLoading(true);
 
-      // localStorage'ı temizle
+      // Önceki kullanıcının verilerini tamamen temizle
       localStorage.clear();
+      sessionStorage.clear();
+
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        try {
+          chrome.storage.local.remove([
+            'encryptedPasswords',
+            'cachedPasswords',
+            'authToken',
+            'refreshToken',
+            'userName',
+            'userId',
+            'encryptionKeyCheck',
+            'kdfSalt',
+            'kdfIterations',
+            'apiUrl',
+            'lastActivity'
+          ]);
+          chrome.storage.session?.clear();
+        } catch (storageErr) {
+          console.warn('Chrome storage temizleme hatası:', storageErr);
+        }
+      }
 
       // 1. Backend'den KDF parametrelerini al
       const kdfParams = await getUserKdfParams(formData.userName);

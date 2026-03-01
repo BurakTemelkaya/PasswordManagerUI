@@ -5,6 +5,7 @@ import { generateSalt, deriveMasterKeyWithKdf, createAuthHash, deriveEncryptionK
 import type { UserForRegisterDto } from '../types';
 import { ApiError } from '../types';
 import '../styles/auth.css';
+import { useVaultLock } from '../context/VaultLockContext';
 
 interface RegisterProps {
   onRegisterSuccess?: () => void; // Extension popup için
@@ -13,6 +14,7 @@ interface RegisterProps {
 
 const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
   const navigate = useNavigate();
+  const { checkLockStatus } = useVaultLock();
   const [formData, setFormData] = useState({
     email: '',
     masterPassword: '',
@@ -53,6 +55,30 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
     try {
       setLoading(true);
 
+      // Önceki kullanıcının verilerini tamamen temizle (Cache zehirlenmesini önle)
+      localStorage.clear();
+      sessionStorage.clear();
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        try {
+          chrome.storage.local.remove([
+            'encryptedPasswords',
+            'cachedPasswords',
+            'authToken',
+            'refreshToken',
+            'userName',
+            'userId',
+            'encryptionKeyCheck',
+            'kdfSalt',
+            'kdfIterations',
+            'apiUrl',
+            'lastActivity'
+          ]);
+          chrome.storage.session?.clear();
+        } catch (storageErr) {
+          console.warn('Chrome storage temizleme hatası:', storageErr);
+        }
+      }
+
       // 1. Frontend'de rastgele salt üret (16 byte, CSPRNG)
       const kdfSalt = generateSalt(16);
       const kdfIterations = 600000;
@@ -86,7 +112,15 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
         localStorage.setItem('authToken', registerResponse.accessToken.token);
         localStorage.setItem('tokenExpiration', registerResponse.accessToken.expirationDate);
       }
-      localStorage.setItem('encryptionKey', encryptionKey);
+
+      // GÜVENLİK: Encryption Key'i ASLA localStorage'a yazma!
+      // Sadece sessionStorage (tab kapanınca silinir) içinde tut.
+      sessionStorage.setItem('encryptionKey', encryptionKey);
+
+      // Encryption Key doğrulama için hash sakla
+      const encryptionKeyCheck = await import('../helpers/encryption').then(m => m.hashSHA256(encryptionKey));
+      localStorage.setItem('encryptionKeyCheck', encryptionKeyCheck);
+
       localStorage.setItem('userName', formData.userName);
       localStorage.setItem('kdfSalt', kdfSalt);
       localStorage.setItem('kdfIterations', kdfIterations.toString());
@@ -108,12 +142,14 @@ const Register = ({ onRegisterSuccess, onBackToLogin }: RegisterProps) => {
         }
       }
 
+      // Vault lock state'ini güncelle
+      checkLockStatus();
+
       // Extension popup'ta mı diye kontrol et
       if (onRegisterSuccess) {
         onRegisterSuccess();
       } else {
-        // Normal web app'ta - dashboard'a yönlendir (zaten giriş yapıldı)
-        navigate('/dashboard');
+        navigate('/');
       }
     } catch (err: unknown) {
       console.error('❌ Register hatası:', err);

@@ -19,7 +19,7 @@ interface SettingsProps {
 type TabType = 'general' | 'security' | 'import-export';
 
 const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps) => {
-  const { lock } = useVaultLock();
+  const { lock, clearVaultState } = useVaultLock();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('general');
   const [loading, setLoading] = useState(false);
@@ -266,6 +266,8 @@ const Settings = ({ onBack, onDashboard, onGenerator, onLogout }: SettingsProps)
     if (onLogout) {
       onLogout();
     } else {
+      // clearVaultState → isLocked=true → PasswordContext eski veriyi temizler
+      clearVaultState();
       navigate('/login');
     }
   };

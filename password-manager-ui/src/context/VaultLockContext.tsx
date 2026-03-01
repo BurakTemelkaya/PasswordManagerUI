@@ -7,6 +7,7 @@ interface VaultLockContextType {
     lock: () => void;
     resetIdleTimer: () => void;
     checkLockStatus: () => void;
+    clearVaultState: () => void; // Çıkış anında isLocked=true yaparak PasswordContext'i temizler
 }
 
 const VaultLockContext = createContext<VaultLockContextType | null>(null);
@@ -24,7 +25,9 @@ export const useVaultLock = () => {
 
 export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     // Başlangıçta locked kabul ediyoruz, useEffect ile kontrol edeceğiz
-    const [isLocked, setIsLocked] = useState<boolean>(false);
+    // Güvenli başlangıç: Her zaman kilitli başla, checkLockStatus ile durumu belirle.
+    // Bu sayede useEffect([isLocked])'ın her login'de true→false geçişi tetiklenmesi garantilenir.
+    const [isLocked, setIsLocked] = useState<boolean>(true);
     const idleTimerRef = useRef<number | null>(null);
 
     // Initial check on mount
@@ -76,6 +79,26 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const clearVaultState = useCallback(() => {
+        // Şifreyi belleğtten anında sil
+        sessionStorage.removeItem('encryptionKey');
+
+        // Extension storage temizliği
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.session?.clear();
+        }
+
+        // Idle timer'i durdur
+        if (idleTimerRef.current) {
+            window.clearTimeout(idleTimerRef.current);
+            idleTimerRef.current = null;
+        }
+
+        // isLocked=true yap → PasswordContext.useEffect([isLocked]) tetiklenir
+        // → setPasswords([]) + setDecryptedPasswords(new Map()) → eski veri temizlenir
+        setIsLocked(true);
+    }, []);
+
     const lock = useCallback(() => {
         const action = localStorage.getItem('vaultAction') || 'lock';
 
@@ -126,9 +149,12 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
                     console.warn('Parola doğrulama başarısız');
                     return false;
                 }
-            } else {
-                // First login maybe?
             }
+
+            // GÜVENLİK KONTROLÜ: Girilen parola sonucunda kilit açıldığında 
+            // eski verilerin state'te takılı kalmasını önlemek için 
+            // tarayıcı bellek yapılarını temizliyoruz
+            sessionStorage.removeItem('encryptionKey');
 
             // --- SAVE KEY LOGIC ---
             sessionStorage.setItem('encryptionKey', encryptionKey);
@@ -226,7 +252,7 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     return (
-        <VaultLockContext.Provider value={{ isLocked, unlock, lock, resetIdleTimer, checkLockStatus }}>
+        <VaultLockContext.Provider value={{ isLocked, unlock, lock, resetIdleTimer, checkLockStatus, clearVaultState }}>
             {children}
         </VaultLockContext.Provider>
     );

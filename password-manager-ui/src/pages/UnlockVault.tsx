@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useVaultLock } from '../context/VaultLockContext';
+import { useNavigate } from 'react-router-dom';
 import { logout } from '../helpers/api';
 import '../styles/auth.css';
 
 const UnlockVault = () => {
-    const { unlock } = useVaultLock();
+    const { unlock, clearVaultState } = useVaultLock();
+    const navigate = useNavigate();
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,8 @@ const UnlockVault = () => {
 
     const handleLogout = async () => {
         await logout();
-        window.location.href = '/login';
+        clearVaultState();
+        navigate('/login');
     };
 
     const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime && !!chrome.runtime.id && window.location.protocol === 'chrome-extension:';

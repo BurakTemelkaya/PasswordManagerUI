@@ -38,12 +38,11 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Kilitlendiğinde sadece decrypt edilmiş verileri temizle
-    // Şifreli veriler hafızada veya localStorage'da kalabilir (Smart Sync için)
+    // Kilitlendiğinde veya çıkış yapıldığında verileri temizle
     useEffect(() => {
         if (isLocked) {
             setDecryptedPasswords(new Map());
-            // passwords state'ini temizlemiyoruz, unlock olunca kullanacağız
+            setPasswords([]); // GÜVENLİK: Kilitlendiğinde veriyi state'ten uçur! (Cache'den veya API'dan yeniden yüklenecek)
         } else {
             // Kilidi açılınca:
             // 1. Eğer hafızada veya local'de password varsa decrypt et
@@ -87,14 +86,15 @@ export const PasswordProvider = ({ children }: { children: ReactNode }) => {
             decryptCurrentPasswords();
         }
 
-        // ROBUST SYNC: Ensure encrypted passwords are always synced to extension storage
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            chrome.storage.local.set({ encryptedPasswords: passwords }, () => {
-                // Optional: log success in dev mode
-            });
-        } else if (typeof window !== 'undefined') {
-            // Extension Context dışındaysak (Web App) eklentiye cache temizlemesi için sinyal gönder
-            window.postMessage({ type: 'PM_EXTENSION_REFRESH_CACHE' }, '*');
+        // ROBUST SYNC: Kasa açıkken şifreli parolaları extension storage ile senkronize et.
+        // isLocked=true olduğunda (çıkış/kilit) eski kullanıcının verisini yazmamak için guard eklendi.
+        if (!isLocked) {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.set({ encryptedPasswords: passwords });
+            } else if (typeof window !== 'undefined') {
+                // Extension Context dışındaysak (Web App) eklentiye cache temizlemesi için sinyal gönder
+                window.postMessage({ type: 'PM_EXTENSION_REFRESH_CACHE' }, '*');
+            }
         }
     }, [passwords, isLocked]);
 

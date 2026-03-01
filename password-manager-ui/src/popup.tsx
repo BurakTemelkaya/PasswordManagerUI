@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logout as apiLogout } from './helpers/api/auth';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import './index.css';
@@ -13,7 +14,7 @@ import EditPasswordPopup from './pages/EditPasswordPopup';
 import Settings from './pages/Settings';
 import UnlockVaultPopup from './pages/UnlockVaultPopup';
 import PasswordGenerator from './pages/PasswordGenerator';
-import { VaultLockProvider } from './context/VaultLockContext';
+import { useVaultLock, VaultLockProvider } from './context/VaultLockContext';
 import { PasswordProvider } from './context/PasswordContext';
 
 type PopupPage = 'login' | 'register' | 'dashboard' | 'add-password' | 'view-password' | 'edit-password' | 'settings' | 'password-generator' | 'notfound' | 'unlock-vault';
@@ -26,6 +27,7 @@ interface PopupState {
 const Popup: React.FC = () => {
   const [state, setState] = useState<PopupState>({ page: 'dashboard' });
   const [loading, setLoading] = useState(true);
+  const { clearVaultState } = useVaultLock();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -147,16 +149,39 @@ const Popup: React.FC = () => {
     setState({ page: 'settings' });
   };
 
-  const handleLogout = () => {
-    // Tüm local verileri temizle
+  const handleLogout = async () => {
+    // Gerçek API logout'u çağır (refresh token cookie'yi siler)
+    try {
+      await apiLogout();
+    } catch {
+      // API hatası olsa da local temizliği yap
+    }
+
+    // Tüm local verileri tamamen temizle (önceki kullanıcı verisi kalmasın)
     localStorage.clear();
     sessionStorage.clear();
 
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.session?.remove(['authToken', 'encryptionKey']);
-      chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords']);
+      chrome.storage.session?.clear();
+      await chrome.storage.local?.remove([
+        'authToken',
+        'encryptionKey',
+        'encryptionKeyCheck',
+        'refreshToken',
+        'passwords',
+        'encryptedPasswords',  // ÖNEMLİ: Şifreli parola önbelleği
+        'cachedPasswords',     // ÖNEMLİ: Açık metin önbellek
+        'userName',
+        'userId',
+        'kdfSalt',
+        'kdfIterations',
+        'apiUrl',
+        'lastActivity',
+      ]);
     }
 
+    // clearVaultState → isLocked=true → PasswordContext eski veriyi temizler
+    clearVaultState();
     setState({ page: 'login' });
   };
 
