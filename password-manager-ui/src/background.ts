@@ -216,8 +216,8 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
       // 401 hala devam ediyorsa oturumu sonlandır
       if (response.status === 401) {
         console.log('🔴 Token yenileme başarısız, oturum sonlandırılıyor...');
-        await chrome.storage.session.remove(['authToken']);
-        await chrome.storage.local.remove(['refreshToken', 'refreshTokenExpiration', 'passwords']);
+        await chrome.storage.session.remove(['authToken', 'encryptionKey']);
+        await chrome.storage.local.remove(['authToken', 'refreshToken', 'refreshTokenExpiration', 'passwords', 'encryptionKeyCheck', 'encryptedPasswords']);
       }
 
       return null;

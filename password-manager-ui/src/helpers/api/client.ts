@@ -249,16 +249,26 @@ function forceLogout() {
   localStorage.removeItem('userId');
   localStorage.removeItem('userName');
   localStorage.removeItem('passwords');
+  localStorage.removeItem('lastSyncDate');
+
+  sessionStorage.removeItem('encryptionKey');
+  sessionStorage.clear();
+
+  const reloadApp = () => {
+    if (window.location.protocol === 'chrome-extension:') {
+      window.location.reload();
+    } else {
+      window.location.href = '/login';
+    }
+  };
 
   if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.session?.remove(['authToken']);
-    chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords', 'tokenExpiration', 'refreshTokenExpiration']);
-  }
+    const p1 = chrome.storage.session?.clear() || Promise.resolve();
+    const p2 = chrome.storage.local?.remove(['authToken', 'encryptionKeyCheck', 'refreshToken', 'passwords', 'tokenExpiration', 'refreshTokenExpiration']) || Promise.resolve();
 
-  if (window.location.protocol === 'chrome-extension:') {
-    window.location.reload();
+    Promise.all([p1, p2]).then(reloadApp).catch(reloadApp);
   } else {
-    window.location.href = '/login';
+    reloadApp();
   }
 }
 

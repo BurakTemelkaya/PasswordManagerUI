@@ -36,6 +36,17 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const checkLockStatus = () => {
+        const authToken = localStorage.getItem('authToken');
+
+        // Eğer authToken yoksa tamamen çıkış yapılmış demektir
+        if (!authToken) {
+            sessionStorage.removeItem('encryptionKey');
+            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                chrome.storage.session.remove(['encryptionKey']);
+            }
+            setIsLocked(true);
+            return;
+        }
 
         let encryptionKey = sessionStorage.getItem('encryptionKey');
 
@@ -57,25 +68,12 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
                 });
                 // Async olduğu için burada return edemeyiz, aşağıda default lock durumu oluşur
                 // Ancak state update ile düzelir.
-            }
-        }
-
-        const authToken = localStorage.getItem('authToken');
-
-        // Güvenlik: Encryption key asla diske yazılmaz
-
-        if (authToken && !encryptionKey) {
-            // chrome.storage.session async check yapılıyorsa hemen kilitli deme, bekle...
-            if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-                // CheckStatus içinde async handled
             } else {
                 setIsLocked(true);
             }
         } else {
-            if (encryptionKey) {
-                setIsLocked(false);
-                resetIdleTimer(); // Timer başlat
-            }
+            setIsLocked(false);
+            resetIdleTimer(); // Timer başlat
         }
     };
 
@@ -102,15 +100,21 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
     const lock = useCallback(() => {
         const action = localStorage.getItem('vaultAction') || 'lock';
 
+        const performReload = () => {
+            window.location.reload();
+        };
+
         if (action === 'logout') {
             // LOGOUT: Her şeyi sil
             localStorage.clear();
             sessionStorage.clear();
             if (typeof chrome !== 'undefined' && chrome.storage) {
-                chrome.storage.session?.clear();
-                chrome.storage.local?.clear();
+                const p1 = chrome.storage.session?.clear() || Promise.resolve();
+                const p2 = chrome.storage.local?.clear() || Promise.resolve();
+                Promise.all([p1, p2]).then(performReload).catch(performReload);
+            } else {
+                performReload();
             }
-            window.location.reload();
         } else {
             // LOCK: Sadece anahtarları sil (Şifreli veriler kalsın)
             sessionStorage.removeItem('encryptionKey');
