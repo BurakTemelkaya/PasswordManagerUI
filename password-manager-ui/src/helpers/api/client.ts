@@ -188,16 +188,35 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        // Mevcut JWT token ile yeni token al (GET metodu)
-        const response = await axios.get(
-          `${config.api.baseURL}/Auth/RefreshToken`,
-          {
-            withCredentials: true, // Cookie'leri gönder
-            headers: {
-              'Authorization': `Bearer ${currentToken}`
+        const refreshToken = localStorage.getItem('refreshToken');
+        let response;
+        const retryTimeout = config.api.timeout || 30000;
+
+        if (refreshToken) {
+          // Extension Uyumlu: POST metodu ile refreshToken'ı body'de gönder
+          response = await axios.post(
+            `${config.api.baseURL}/Auth/RefreshToken`,
+            { refreshToken },
+            {
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              timeout: retryTimeout
             }
-          }
-        );
+          );
+        } else {
+          // Web Uyumlu: GET metodu ile cookie üzerinden yenileme (withCredentials)
+          response = await axios.get(
+            `${config.api.baseURL}/Auth/RefreshToken`,
+            {
+              withCredentials: true, // Cookie'leri gönder
+              headers: {
+                'Authorization': `Bearer ${currentToken}`
+              },
+              timeout: retryTimeout
+            }
+          );
+        }
 
         // API response: { token, expirationDate }
         const newAccessToken = response.data.token;
