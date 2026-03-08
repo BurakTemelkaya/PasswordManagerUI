@@ -124,10 +124,28 @@ async function decryptPassword(encrypted: EncryptedPassword, encryptionKey: stri
 // API UTILITIES
 // ============================================
 
+let isRefreshing = false;
+let refreshSubscribers: ((tokens: { accessToken: string; refreshToken: string } | null) => void)[] = [];
+
+function onRefreshed(tokens: { accessToken: string; refreshToken: string } | null) {
+  refreshSubscribers.forEach(cb => cb(tokens));
+  refreshSubscribers = [];
+}
+
 /**
  * Refresh token ile yeni access token al
  */
 async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise<{ accessToken: string; refreshToken: string } | null> {
+  if (isRefreshing) {
+    return new Promise(resolve => {
+      refreshSubscribers.push((tokens) => {
+        resolve(tokens);
+      });
+    });
+  }
+
+  isRefreshing = true;
+
   try {
     const response = await fetch(`${apiUrl}/Auth/RefreshToken`, {
       method: 'POST',
@@ -139,10 +157,13 @@ async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise
 
     if (!response.ok) {
       console.error('🔴 Refresh token başarısız:', response.status);
+      onRefreshed(null);
+      isRefreshing = false;
       return null;
     }
 
     const data = await response.json();
+    let result = null;
 
     // Yeni token'ları session storage'a kaydet
     if (data.accessToken?.token) {
@@ -151,22 +172,29 @@ async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise
         tokenExpiration: data.accessToken.expirationDate
       });
       console.log('✅ Background: Access token yenilendi');
+      
+      if (data.refreshToken?.token) {
+        await chrome.storage.local.set({
+          refreshToken: data.refreshToken.token,
+          refreshTokenExpiration: data.refreshToken.expirationDate
+        });
+        console.log('✅ Background: Refresh token yenilendi');
+      }
+
+      result = {
+        accessToken: data.accessToken?.token,
+        refreshToken: data.refreshToken?.token
+      };
     }
 
-    if (data.refreshToken?.token) {
-      await chrome.storage.local.set({
-        refreshToken: data.refreshToken.token,
-        refreshTokenExpiration: data.refreshToken.expirationDate
-      });
-      console.log('✅ Background: Refresh token yenilendi');
-    }
+    onRefreshed(result);
+    isRefreshing = false;
+    return result;
 
-    return {
-      accessToken: data.accessToken?.token,
-      refreshToken: data.refreshToken?.token
-    };
   } catch (error) {
     console.error('🔴 Refresh token hatası:', error);
+    onRefreshed(null);
+    isRefreshing = false;
     return null;
   }
 }
