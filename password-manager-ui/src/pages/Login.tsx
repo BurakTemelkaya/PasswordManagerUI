@@ -15,6 +15,7 @@ interface LocationState {
 interface LoginProps {
   onLoginSuccess?: () => void; // Extension popup için
   onRegister?: () => void; // Extension popup için - register page'ine git
+  initialWarning?: string | null; // Oturum süresi dolduğunda gösterilecek uyarı
 }
 
 // JWT'yi decode et ve userId'yi al
@@ -39,7 +40,7 @@ const getUserIdFromToken = (token: string): string | null => {
   }
 };
 
-const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
+const Login = ({ onLoginSuccess, onRegister, initialWarning }: LoginProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state as LocationState) || {};
@@ -294,6 +295,7 @@ const Login = ({ onLoginSuccess, onRegister }: LoginProps) => {
             <h1 style={{ marginBottom: '24px' }}>Giriş Yap</h1>
           )}
 
+          {initialWarning && <div className="alert alert-error">{initialWarning}</div>}
           {successMessage && <div className="alert alert-success">{successMessage}</div>}
           {error && <div className="alert alert-error">{error}</div>}
 

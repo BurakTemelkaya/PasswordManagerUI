@@ -42,7 +42,7 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
         if (!authToken) {
             sessionStorage.removeItem('encryptionKey');
             if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-                chrome.storage.session.remove(['encryptionKey']);
+                chrome.storage.session.remove(['encryptionKey']).catch(() => {});
             }
             setIsLocked(true);
             return;
@@ -55,7 +55,21 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
         // tarayıcı kapanana kadar kalıcıdır (tüm timeout tipleri için)
         if (!encryptionKey) {
             if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+                // Timeout koruması: chrome.storage.session uzun süre sonra
+                // yanıt vermeyebilir (runtime context invalidation)
+                let resolved = false;
+                const timeoutId = setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        console.warn('⚠️ chrome.storage.session.get encryptionKey timeout - kilitli kabul ediliyor');
+                        setIsLocked(true);
+                    }
+                }, 5000);
+
                 chrome.storage.session.get(['encryptionKey']).then((data) => {
+                    if (resolved) return;
+                    resolved = true;
+                    clearTimeout(timeoutId);
                     if (data.encryptionKey) {
                         console.log('🔓 Kasa açık (chrome.storage.session restore)');
                         // Restore to sessionStorage (UI components use this)
@@ -65,9 +79,13 @@ export const VaultLockProvider = ({ children }: { children: ReactNode }) => {
                     } else {
                         setIsLocked(true);
                     }
+                }).catch((err) => {
+                    if (resolved) return;
+                    resolved = true;
+                    clearTimeout(timeoutId);
+                    console.warn('⚠️ chrome.storage.session.get hatası:', err);
+                    setIsLocked(true);
                 });
-                // Async olduğu için burada return edemeyiz, aşağıda default lock durumu oluşur
-                // Ancak state update ile düzelir.
             } else {
                 setIsLocked(true);
             }

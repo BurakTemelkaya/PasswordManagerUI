@@ -125,8 +125,7 @@ export const apiClient: AxiosInstance = axios.create({
 
 // Request interceptor
 apiClient.interceptors.request.use(
-  (requestConfig) => {
-    // Token ekle
+  async (requestConfig) => {
     const token = localStorage.getItem('authToken');
 
     // DEBUG: İstek detaylarını logla
@@ -134,6 +133,46 @@ apiClient.interceptors.request.use(
       hasToken: !!token,
       headers: requestConfig.headers
     });
+
+    // Proaktif token süresi kontrolü: Süresi 2 dakika içinde dolacaksa önceden yenile
+    if (token && !requestConfig.url?.includes('/Auth/')) {
+      const expiration = localStorage.getItem('tokenExpiration');
+      if (expiration) {
+        const expiresAt = new Date(expiration).getTime();
+        const now = Date.now();
+        const twoMinutes = 2 * 60 * 1000;
+        if (expiresAt - now < twoMinutes && expiresAt > now) {
+          console.log('⚠️ Token süresi dolmak üzere, proaktif yenileme başlatılıyor...');
+          try {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (refreshToken) {
+              const response = await axios.post(
+                `${config.api.baseURL}/Auth/RefreshToken`,
+                { refreshToken },
+                { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
+              );
+              const newAccessToken = response.data.token || response.data.accessToken?.token;
+              const newExpiration = response.data.expirationDate || response.data.accessToken?.expirationDate;
+              if (newAccessToken) {
+                localStorage.setItem('authToken', newAccessToken);
+                if (newExpiration) localStorage.setItem('tokenExpiration', newExpiration);
+                if (response.data.refreshToken?.token) {
+                  localStorage.setItem('refreshToken', response.data.refreshToken.token);
+                  localStorage.setItem('refreshTokenExpiration', response.data.refreshToken.expirationDate);
+                }
+                if (requestConfig.headers) {
+                  requestConfig.headers.Authorization = `Bearer ${newAccessToken}`;
+                }
+                console.log('✅ Proaktif token yenileme başarılı');
+                return requestConfig;
+              }
+            }
+          } catch (refreshErr) {
+            console.warn('⚠️ Proaktif token yenileme başarısız, mevcut token ile devam ediliyor:', refreshErr);
+          }
+        }
+      }
+    }
 
     if (token && requestConfig.headers) {
       requestConfig.headers.Authorization = `Bearer ${token}`;
@@ -158,10 +197,16 @@ apiClient.interceptors.response.use(
         return Promise.reject(parseErrorResponse(error));
       }
 
-      // Token yenileme işlemi zaten devam ediyorsa kuyruğa ekle
+      // Token yenileme işlemi zaten devam ediyorsa kuyruğa ekle (15s timeout ile)
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
+          const timeout = setTimeout(() => {
+            reject(new Error('Token yenileme kuyruğu zaman aşımı'));
+          }, 15000);
+          failedQueue.push({
+            resolve: (value) => { clearTimeout(timeout); resolve(value); },
+            reject: (reason) => { clearTimeout(timeout); reject(reason); }
+          });
         })
           .then((token) => {
             if (originalRequest.headers) {
@@ -261,6 +306,11 @@ apiClient.interceptors.response.use(
  * Kullanıcıyı zorla çıkış yaptır
  */
 function forceLogout() {
+  // Sayfa yeniden yüklenince console temizlendiği için sebep bilgisi sakla
+  console.error('🔴 forceLogout çağrıldı - oturum süresi doldu veya refresh token geçersiz');
+  localStorage.setItem('_forceLogoutReason', 'session_expired');
+  localStorage.setItem('_forceLogoutTime', new Date().toISOString());
+
   localStorage.removeItem('authToken');
   localStorage.removeItem('tokenExpiration');
   localStorage.removeItem('refreshToken');

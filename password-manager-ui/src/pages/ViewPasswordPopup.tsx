@@ -180,11 +180,10 @@ const ViewPasswordPopup = ({ id, onBack, onEdit }: ViewPasswordPopupProps) => {
         {/* Header Card */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', padding: '12px', background: 'var(--pm-bg-tertiary)', borderRadius: '8px' }}>
           <div className="popup-password-favicon">
-            {faviconUrl ? (
-              <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            ) : (
-              <span className="popup-password-favicon-letter">{decrypted?.name?.charAt(0).toUpperCase() || 'P'}</span>
+            {faviconUrl && (
+              <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
             )}
+            <span className="popup-password-favicon-letter" style={faviconUrl ? { display: 'none' } : undefined}>{decrypted?.name?.charAt(0).toUpperCase() || 'P'}</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{decrypted?.name}</div>

@@ -137,14 +137,29 @@ function onRefreshed(tokens: { accessToken: string; refreshToken: string } | nul
  */
 async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise<{ accessToken: string; refreshToken: string } | null> {
   if (isRefreshing) {
+    // Zaten yenileniyorsa kuyruğa ekle, ama 15 saniye timeout ile
     return new Promise(resolve => {
+      const timeout = setTimeout(() => {
+        console.warn('⚠️ Background: Refresh subscriber timeout (15s)');
+        resolve(null);
+      }, 15000);
       refreshSubscribers.push((tokens) => {
+        clearTimeout(timeout);
         resolve(tokens);
       });
     });
   }
 
   isRefreshing = true;
+
+  // 15 saniye genel timeout - isRefreshing'in takılı kalmasını önler
+  const refreshTimeout = setTimeout(() => {
+    if (isRefreshing) {
+      console.error('🔴 Background: Token yenileme timeout (15s), isRefreshing sıfırlanıyor');
+      isRefreshing = false;
+      onRefreshed(null);
+    }
+  }, 15000);
 
   try {
     const response = await fetch(`${apiUrl}/Auth/RefreshToken`, {
@@ -157,6 +172,7 @@ async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise
 
     if (!response.ok) {
       console.error('🔴 Refresh token başarısız:', response.status);
+      clearTimeout(refreshTimeout);
       onRefreshed(null);
       isRefreshing = false;
       return null;
@@ -187,12 +203,14 @@ async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise
       };
     }
 
+    clearTimeout(refreshTimeout);
     onRefreshed(result);
     isRefreshing = false;
     return result;
 
   } catch (error) {
     console.error('🔴 Refresh token hatası:', error);
+    clearTimeout(refreshTimeout);
     onRefreshed(null);
     isRefreshing = false;
     return null;

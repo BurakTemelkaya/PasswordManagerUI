@@ -348,11 +348,10 @@ const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenera
                       onClick={() => onViewPassword ? onViewPassword(password.id) : navigate(`/passwords/${password.id}`)}
                     >
                       <div className="popup-password-favicon">
-                        {faviconUrl ? (
-                          <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        ) : (
-                          <span className="popup-password-favicon-letter">{getInitial(decrypted?.name || 'P')}</span>
+                        {faviconUrl && (
+                          <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
                         )}
+                        <span className="popup-password-favicon-letter" style={faviconUrl ? { display: 'none' } : undefined}>{getInitial(decrypted?.name || 'P')}</span>
                       </div>
                       <div className="popup-password-info">
                         <div className="popup-password-name">{decrypted?.name || 'Parola'}</div>
@@ -414,11 +413,10 @@ const Dashboard = ({ onAddPassword, onViewPassword, onSettings, onPasswordGenera
                       onClick={() => onViewPassword ? onViewPassword(password.id) : navigate(`/passwords/${password.id}`)}
                     >
                       <div className="popup-password-favicon">
-                        {faviconUrl ? (
-                          <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        ) : (
-                          <span className="popup-password-favicon-letter">{getInitial(decrypted?.name || 'P')}</span>
+                        {faviconUrl && (
+                          <img src={faviconUrl} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
                         )}
+                        <span className="popup-password-favicon-letter" style={faviconUrl ? { display: 'none' } : undefined}>{getInitial(decrypted?.name || 'P')}</span>
                       </div>
                       <div className="popup-password-info">
                         <div className="popup-password-name">{decrypted?.name || 'Parola'}</div>
