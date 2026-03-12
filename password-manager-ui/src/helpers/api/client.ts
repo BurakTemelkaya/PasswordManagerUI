@@ -12,6 +12,30 @@ let failedQueue: Array<{
 }> = [];
 
 /**
+ * Popup'ta yapılan token yenilemesini chrome.storage'a da kaydet.
+ * Background service worker aynı storage'ı okuduğu için senkron kalması gerekir.
+ * Aksi halde iki taraf farklı refresh token kullanarak birbirini geçersiz kılar.
+ */
+function syncTokensToExtensionStorage(
+  accessToken: string,
+  refreshToken?: string | null,
+  tokenExpiration?: string | null,
+  refreshTokenExpiration?: string | null
+) {
+  if (typeof chrome === 'undefined' || !chrome.storage) return;
+  try {
+    // Session storage (tarayıcı kapanınca silinir)
+    chrome.storage.session?.set({ authToken: accessToken }).catch(() => {});
+    // Local storage (kalıcı)
+    const localData: Record<string, string> = { authToken: accessToken };
+    if (refreshToken) localData.refreshToken = refreshToken;
+    if (tokenExpiration) localData.tokenExpiration = tokenExpiration;
+    if (refreshTokenExpiration) localData.refreshTokenExpiration = refreshTokenExpiration;
+    chrome.storage.local?.set(localData).catch(() => {});
+  } catch { /* extension context olmayabilir */ }
+}
+
+/**
  * Bekleyen istekleri işle
  */
 const processQueue = (error: unknown, token: string | null = null) => {
@@ -163,6 +187,13 @@ apiClient.interceptors.request.use(
                 if (requestConfig.headers) {
                   requestConfig.headers.Authorization = `Bearer ${newAccessToken}`;
                 }
+                // Background service worker ile senkronize et
+                syncTokensToExtensionStorage(
+                  newAccessToken,
+                  response.data.refreshToken?.token,
+                  newExpiration,
+                  response.data.refreshToken?.expirationDate
+                );
                 console.log('✅ Proaktif token yenileme başarılı');
                 return requestConfig;
               }
@@ -264,14 +295,24 @@ apiClient.interceptors.response.use(
         }
 
         // API response: { token, expirationDate }
-        const newAccessToken = response.data.token;
-        const newExpiration = response.data.expirationDate;
+        const newAccessToken = response.data.token || response.data.accessToken?.token;
+        const newExpiration = response.data.expirationDate || response.data.accessToken?.expirationDate;
+        const newRefreshToken = response.data.refreshToken?.token;
+        const newRefreshExpiration = response.data.refreshToken?.expirationDate;
 
         if (newAccessToken) {
           localStorage.setItem('authToken', newAccessToken);
           if (newExpiration) {
             localStorage.setItem('tokenExpiration', newExpiration);
           }
+          if (newRefreshToken) {
+            localStorage.setItem('refreshToken', newRefreshToken);
+            if (newRefreshExpiration) {
+              localStorage.setItem('refreshTokenExpiration', newRefreshExpiration);
+            }
+          }
+          // Background service worker ile senkronize et
+          syncTokensToExtensionStorage(newAccessToken, newRefreshToken, newExpiration, newRefreshExpiration);
         } else {
           throw new Error('Yeni token alınamadı');
         }

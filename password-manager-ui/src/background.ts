@@ -181,10 +181,11 @@ async function refreshAccessToken(refreshToken: string, apiUrl: string): Promise
     const data = await response.json();
     let result = null;
 
-    // Yeni token'ları session storage'a kaydet
+    // Yeni token'ları her iki storage'a da kaydet (popup ile senkron kalsın)
     if (data.accessToken?.token) {
       await chrome.storage.session.set({ authToken: data.accessToken.token });
       await chrome.storage.local.set({
+        authToken: data.accessToken.token,
         tokenExpiration: data.accessToken.expirationDate
       });
       console.log('✅ Background: Access token yenilendi');
@@ -259,11 +260,12 @@ async function fetchPasswords(token: string, apiUrl: string): Promise<EncryptedP
     if (!response.ok) {
       console.error('API response not ok:', response.status);
 
-      // 401 hala devam ediyorsa oturumu sonlandır
+      // 401 durumunda sadece authToken'ı temizle — encryptionKey ve refreshToken'a dokunma!
+      // Popup tarafı kendi refresh akışını yönetir; burada agresif temizlik yapmak
+      // popup ile background arasında race condition'a yol açarak gereksiz çıkış yaptırır.
       if (response.status === 401) {
-        console.log('🔴 Token yenileme başarısız, oturum sonlandırılıyor...');
-        await chrome.storage.session.remove(['authToken', 'encryptionKey']);
-        await chrome.storage.local.remove(['authToken', 'refreshToken', 'refreshTokenExpiration', 'passwords', 'encryptionKeyCheck', 'encryptedPasswords']);
+        console.warn('⚠️ Background fetchPasswords 401 — token geçersiz, cache ile devam edilecek');
+        await chrome.storage.session.remove(['authToken']).catch(() => {});
       }
 
       return null;
